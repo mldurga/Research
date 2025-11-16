@@ -54,7 +54,10 @@ logs/
 # Google Cloud
 .gcloud/
 credentials.json
+*credentials.json
 service-account.json
+*service-account*.json
+gcp-credentials.json
 
 # Backups
 *.backup
