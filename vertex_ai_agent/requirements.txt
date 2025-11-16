@@ -1,0 +1,21 @@
+# Vertex AI Agent Development Kit
+google-genai>=0.2.0
+google-genai[adk]>=0.2.0
+
+# MCP Protocol Support
+mcp>=0.1.0
+
+# Additional dependencies for agent functionality
+aiohttp>=3.9.0
+requests>=2.31.0
+pydantic>=2.0.0
+
+# Google Cloud dependencies
+google-cloud-aiplatform>=1.38.0
+google-cloud-storage>=2.10.0
+
+# Logging and monitoring
+google-cloud-logging>=3.5.0
+
+# Optional: For local development and testing
+python-dotenv>=1.0.0

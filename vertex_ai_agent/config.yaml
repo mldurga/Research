@@ -1,0 +1,60 @@
+# Vertex AI Agent Configuration
+agent:
+  name: "pi-system-assistant"
+  description: "AI Assistant for AVEVA PI System with semantic search and data analytics"
+  version: "1.0.0"
+
+# Model configuration
+model:
+  name: "gemini-2.0-flash-exp"
+  temperature: 0.2  # Lower temperature for more consistent technical responses
+  top_p: 0.95
+  top_k: 40
+  max_output_tokens: 8192
+
+# MCP Server configuration
+mcp:
+  connection_type: "sse"  # Server-Sent Events (SSE) for Cloud Run
+  timeout: 300  # 5 minutes timeout for long-running operations
+  retry:
+    max_attempts: 3
+    initial_delay_ms: 1000
+    max_delay_ms: 10000
+    multiplier: 2
+
+# Tool configuration
+tools:
+  # Enable all MCP tools by default
+  enable_all: true
+
+  # Optional: Specify which tools to expose (comment out to enable all)
+  # allowed_tools:
+  #   - search_af_elements_semantic
+  #   - search_elements_by_template
+  #   - batch_get_element_attributes
+  #   - get_recorded_values
+  #   - get_interpolated_values
+  #   - get_streamset_values
+  #   - forecast_pi_attribute
+  #   - get_pi_system_health
+  #   - trigger_af_reindex
+
+# Deployment configuration
+deployment:
+  min_replicas: 1
+  max_replicas: 10
+  cpu: "2"
+  memory: "4Gi"
+  timeout: "3600s"  # 1 hour
+
+# Security configuration
+security:
+  require_authentication: true
+  allowed_domains: []  # Add domains if needed
+
+# Monitoring and logging
+monitoring:
+  enable_logging: true
+  log_level: "INFO"
+  enable_metrics: true
+  enable_tracing: true
