@@ -1,0 +1,72 @@
+<?xml version="1.0"?>
+<clickhouse>
+    <!-- Custom ClickHouse configuration for Opik -->
+
+    <!-- Network settings -->
+    <listen_host>0.0.0.0</listen_host>
+
+    <!-- Memory limits -->
+    <max_server_memory_usage_to_ram_ratio>0.9</max_server_memory_usage_to_ram_ratio>
+    <max_memory_usage>10000000000</max_memory_usage>
+
+    <!-- Performance tuning -->
+    <max_concurrent_queries>100</max_concurrent_queries>
+    <max_thread_pool_size>10000</max_thread_pool_size>
+
+    <!-- Query complexity limits -->
+    <max_execution_time>300</max_execution_time>
+    <max_rows_to_read>1000000000</max_rows_to_read>
+
+    <!-- Compression -->
+    <compression>
+        <case>
+            <method>zstd</method>
+            <level>3</level>
+        </case>
+    </compression>
+
+    <!-- Logging -->
+    <logger>
+        <level>information</level>
+        <console>true</console>
+    </logger>
+
+    <!-- Profiles for different query types -->
+    <profiles>
+        <default>
+            <max_memory_usage>10000000000</max_memory_usage>
+            <use_uncompressed_cache>0</use_uncompressed_cache>
+            <load_balancing>random</load_balancing>
+        </default>
+
+        <readonly>
+            <readonly>1</readonly>
+        </readonly>
+    </profiles>
+
+    <!-- Users -->
+    <users>
+        <opik>
+            <password>opik_password</password>
+            <networks>
+                <ip>::/0</ip>
+            </networks>
+            <profile>default</profile>
+            <quota>default</quota>
+        </opik>
+    </users>
+
+    <!-- Quotas -->
+    <quotas>
+        <default>
+            <interval>
+                <duration>3600</duration>
+                <queries>0</queries>
+                <errors>0</errors>
+                <result_rows>0</result_rows>
+                <read_rows>0</read_rows>
+                <execution_time>0</execution_time>
+            </interval>
+        </default>
+    </quotas>
+</clickhouse>

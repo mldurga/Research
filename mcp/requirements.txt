@@ -1,0 +1,28 @@
+# PI System MCP Server Requirements
+
+# MCP Framework
+fastmcp>=0.1.0
+
+# HTTP Client
+aiohttp>=3.9.0
+
+# Data Processing
+pandas>=2.0.0
+numpy>=1.24.0
+
+# Forecasting (for Prophet tool)
+prophet>=1.1.0
+
+# Vector Database
+chromadb>=0.4.0
+
+# Environment Variables
+python-dotenv>=1.0.0
+
+# Embeddings (for semantic search)
+sentence-transformers>=2.2.0
+
+# Optional: OpenTelemetry for tracing MCP server itself
+# opentelemetry-api>=1.21.0
+# opentelemetry-sdk>=1.21.0
+# opentelemetry-exporter-otlp-proto-http>=1.21.0
