@@ -1,0 +1,391 @@
+version: '3.8'
+
+# LibreChat + Opik Integration
+# This compose file sets up:
+# - LibreChat (frontend + backend)
+# - Opik observability platform
+# - All required infrastructure
+
+services:
+  # ===========================================
+  # Opik Infrastructure Services
+  # ===========================================
+
+  opik-mysql:
+    image: mysql:8.0
+    container_name: opik-mysql
+    profiles: ["opik"]
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: opik_root_password
+      MYSQL_DATABASE: opik
+      MYSQL_USER: opik
+      MYSQL_PASSWORD: opik_password
+    volumes:
+      - opik-mysql-data:/var/lib/mysql
+    networks:
+      - opik-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p$$MYSQL_ROOT_PASSWORD"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  opik-redis:
+    image: redis:7-alpine
+    container_name: opik-redis
+    profiles: ["opik"]
+    restart: unless-stopped
+    volumes:
+      - opik-redis-data:/data
+    networks:
+      - opik-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  opik-zookeeper:
+    image: zookeeper:3.8
+    container_name: opik-zookeeper
+    profiles: ["opik"]
+    restart: unless-stopped
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    volumes:
+      - opik-zookeeper-data:/data
+      - opik-zookeeper-datalog:/datalog
+    networks:
+      - opik-network
+
+  opik-clickhouse:
+    image: clickhouse/clickhouse-server:24.3
+    container_name: opik-clickhouse
+    profiles: ["opik"]
+    restart: unless-stopped
+    environment:
+      CLICKHOUSE_DB: opik
+      CLICKHOUSE_USER: opik
+      CLICKHOUSE_PASSWORD: opik_password
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    volumes:
+      - opik-clickhouse-data:/var/lib/clickhouse
+      - ./opik/clickhouse-config.xml:/etc/clickhouse-server/config.d/custom.xml:ro
+    networks:
+      - opik-network
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  opik-minio:
+    image: minio/minio:latest
+    container_name: opik-minio
+    profiles: ["opik"]
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: opik_minio
+      MINIO_ROOT_PASSWORD: opik_minio_password
+    volumes:
+      - opik-minio-data:/data
+    networks:
+      - opik-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ===========================================
+  # Opik Application Services
+  # ===========================================
+
+  opik-backend:
+    image: cometai/opik-backend:${OPIK_VERSION:-0.1.10}
+    container_name: opik-backend
+    profiles: ["opik"]
+    restart: unless-stopped
+    depends_on:
+      opik-mysql:
+        condition: service_healthy
+      opik-redis:
+        condition: service_healthy
+      opik-clickhouse:
+        condition: service_healthy
+      opik-minio:
+        condition: service_healthy
+    environment:
+      # Database connections
+      DB_HOST: opik-mysql
+      DB_PORT: 3306
+      DB_NAME: opik
+      DB_USER: opik
+      DB_PASSWORD: opik_password
+
+      # Redis
+      REDIS_HOST: opik-redis
+      REDIS_PORT: 6379
+
+      # ClickHouse
+      CLICKHOUSE_HOST: opik-clickhouse
+      CLICKHOUSE_PORT: 8123
+      CLICKHOUSE_DB: opik
+      CLICKHOUSE_USER: opik
+      CLICKHOUSE_PASSWORD: opik_password
+
+      # MinIO
+      MINIO_ENDPOINT: opik-minio:9000
+      MINIO_ACCESS_KEY: opik_minio
+      MINIO_SECRET_KEY: opik_minio_password
+
+      # Application
+      API_KEY: ${OPIK_API_KEY:-opik-default-key-change-in-production}
+      JWT_SECRET: ${OPIK_JWT_SECRET:-opik-jwt-secret-change-in-production}
+
+      # OTEL
+      ENABLE_OTEL_LOG_EXPORT: ${ENABLE_OTEL_LOG_EXPORT:-true}
+    ports:
+      - "8080:8080"
+    networks:
+      - opik-network
+      - librechat-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  opik-python-backend:
+    image: cometai/opik-python-backend:${OPIK_VERSION:-0.1.10}
+    container_name: opik-python-backend
+    profiles: ["opik"]
+    restart: unless-stopped
+    depends_on:
+      - opik-backend
+    environment:
+      OPIK_BACKEND_URL: http://opik-backend:8080
+    ports:
+      - "8000:8000"
+    networks:
+      - opik-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  opik-frontend:
+    image: cometai/opik-frontend:${OPIK_VERSION:-0.1.10}
+    container_name: opik-frontend
+    profiles: ["opik"]
+    restart: unless-stopped
+    depends_on:
+      - opik-backend
+    environment:
+      VITE_API_URL: http://localhost:8080
+      VITE_PYTHON_API_URL: http://localhost:8000
+    ports:
+      - "5173:5173"
+    networks:
+      - opik-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5173"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  # ===========================================
+  # LibreChat Services
+  # ===========================================
+
+  librechat-mongodb:
+    image: mongo:latest
+    container_name: librechat-mongodb
+    profiles: ["librechat"]
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USERNAME:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-admin123}
+      MONGO_INITDB_DATABASE: LibreChat
+    volumes:
+      - librechat-mongodb-data:/data/db
+    networks:
+      - librechat-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  librechat-rag:
+    image: ghcr.io/danny-avila/librechat-rag-api-dev-lite:latest
+    container_name: librechat-rag
+    profiles: ["librechat"]
+    restart: unless-stopped
+    environment:
+      - PORT=8000
+      - RAG_PORT=8000
+      - RAG_HOST=0.0.0.0
+      - EMBEDDINGS_PROVIDER=${EMBEDDINGS_PROVIDER:-openai}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - DEBUG_RAG_API=${DEBUG_RAG_API:-false}
+    networks:
+      - librechat-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  librechat-backend:
+    build:
+      context: ./librechat
+      dockerfile: Dockerfile.backend
+      args:
+        NODE_VERSION: 18
+    image: librechat-backend:otel
+    container_name: librechat-backend
+    profiles: ["librechat"]
+    restart: unless-stopped
+    depends_on:
+      librechat-mongodb:
+        condition: service_healthy
+      opik-backend:
+        condition: service_healthy
+    environment:
+      # Core settings
+      HOST: 0.0.0.0
+      PORT: 3080
+      MONGO_URI: mongodb://${MONGO_USERNAME:-admin}:${MONGO_PASSWORD:-admin123}@librechat-mongodb:27017/LibreChat?authSource=admin
+
+      # API Keys
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+
+      # RAG API
+      RAG_API_URL: http://librechat-rag:8000
+
+      # Session & Security
+      CREDS_KEY: ${CREDS_KEY:-f34be427ebb29de8d88c107a71546019685ed8b241d8f2ed00c3df97ad2566f0}
+      CREDS_IV: ${CREDS_IV:-e2341419ec3dd3d19b13a1a87fafcbfb}
+      JWT_SECRET: ${JWT_SECRET:-16f8c0ef4a5d391b26034086c628469d3f9f497f08163ab9b40137092f2909ef}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-eaa5191f2914e30b9387fd84e254e4ba6fc51b4654968a9b0803b456a54b8418}
+
+      # Opik / OpenTelemetry Integration
+      ENABLE_OTEL: true
+      OTEL_SERVICE_NAME: librechat-backend
+      OPIK_URL: http://opik-backend:8080
+      OPIK_API_KEY: ${OPIK_API_KEY:-opik-default-key-change-in-production}
+      OPIK_PROJECT_NAME: ${OPIK_PROJECT_NAME:-librechat}
+      OPIK_WORKSPACE_NAME: ${OPIK_WORKSPACE_NAME:-default}
+
+      # Debug (optional)
+      DEBUG_LOGGING: ${DEBUG_LOGGING:-false}
+      OTEL_LOG_LEVEL: ${OTEL_LOG_LEVEL:-info}
+
+      # MCP Server Configuration (if you want to use MCP servers)
+      # MCP_SERVER_PI_URL: http://pi-mcp-server:8001
+      # MCP_SERVER_PI_ENABLED: true
+    volumes:
+      - ./librechat/api:/app/api
+      - ./librechat/images:/app/client/public/images
+      - ./librechat/logs:/app/logs
+    ports:
+      - "3080:3080"
+    networks:
+      - librechat-network
+      - opik-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3080/api/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  librechat-frontend:
+    build:
+      context: ./librechat
+      dockerfile: Dockerfile.frontend
+      args:
+        NODE_VERSION: 18
+    image: librechat-frontend:otel
+    container_name: librechat-frontend
+    profiles: ["librechat"]
+    restart: unless-stopped
+    depends_on:
+      - librechat-backend
+    environment:
+      VITE_API_URL: http://localhost:3080
+    ports:
+      - "3081:80"
+    networks:
+      - librechat-network
+
+  # ===========================================
+  # Optional: MCP Server for PI System
+  # ===========================================
+
+  pi-mcp-server:
+    build:
+      context: ../mcp
+      dockerfile: Dockerfile
+    image: pi-mcp-server:latest
+    container_name: pi-mcp-server
+    profiles: ["mcp"]
+    restart: unless-stopped
+    environment:
+      # PI System Configuration
+      PI_WEBAPI_URL: ${PI_WEBAPI_URL}
+      PI_USERNAME: ${PI_USERNAME}
+      PI_PASSWORD: ${PI_PASSWORD}
+      PI_AUTH_METHOD: ${PI_AUTH_METHOD:-negotiate}
+      PI_VERIFY_SSL: ${PI_VERIFY_SSL:-true}
+
+      # Server Configuration
+      PORT: 8001
+      HOST: 0.0.0.0
+      LOG_LEVEL: INFO
+
+      # Vector DB
+      INDEXING_ENABLED: true
+      CHROMA_DATA_DIR: /app/chroma_data
+    volumes:
+      - pi-mcp-data:/app/chroma_data
+    ports:
+      - "8001:8001"
+    networks:
+      - librechat-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  opik-network:
+    name: opik-network
+    driver: bridge
+  librechat-network:
+    name: librechat-network
+    driver: bridge
+
+volumes:
+  # Opik volumes
+  opik-mysql-data:
+  opik-redis-data:
+  opik-clickhouse-data:
+  opik-zookeeper-data:
+  opik-zookeeper-datalog:
+  opik-minio-data:
+
+  # LibreChat volumes
+  librechat-mongodb-data:
+
+  # MCP volumes
+  pi-mcp-data:
