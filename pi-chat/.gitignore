@@ -1,0 +1,77 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.swn
+.DS_Store
+
+# Logs
+logs/
+*.log
+
+# Environment variables
+.env
+.env.local
+
+# Configuration (contains sensitive data)
+backend/config/appsettings.json
+
+# ChromaDB data
+backend/chroma_db/
+*.parquet
+*.sqlite3
+
+# Ollama (if running locally)
+*.gguf
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Node modules (admin panel)
+admin-panel/node_modules/
+admin-panel/dist/
+admin-panel/.env
+
+# Temporary files
+*.tmp
+*.bak
+*.cache
+
+# Test coverage
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Distribution
+*.tar.gz
+*.zip
