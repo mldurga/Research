@@ -705,7 +705,7 @@ async def get_af_element(element_path: str) -> str:
 async def batch_get_element_attributes(
     element_web_ids: List[str],
     name_filter: str = "*",
-    max_attributes_per_element: int = 20
+    max_attributes_per_element: int = 40
 ) -> Dict[str, Any]:
     """
     Get AF Element attributes with WebIds and metadata - efficient way to get attribute WebIds for data retrieval
@@ -1862,3 +1862,4 @@ if __name__ == "__main__":
         except Exception as cleanup_error:
             logger.error(f"Cleanup error: {cleanup_error}")
         exit(1)
+ 
