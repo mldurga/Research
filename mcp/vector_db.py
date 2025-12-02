@@ -1,29 +1,48 @@
+"""
+Production-Ready Vector Database Manager for AVEVA PI AF Elements
+
+Key Features:
+- Indexes AF Elements WITH their attributes in a single document
+- Semantic search across element names, paths, templates, AND attributes
+- Metadata flags for quick filtering (has_healthscore, has_temperature, etc.)
+- Intelligent keyword extraction from attribute names
+- Efficient batch processing with progress tracking
+- Comprehensive error handling and logging
+
+Author: Data Center Reliability Team
+Version: 2.0 - Integrated Attribute Indexing
+"""
+
 import chromadb
 import logging
 import asyncio
 from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime, timedelta
 import json
-import hashlib
 import time
 from config import config, AF_TEMPLATE_CATEGORIES
 
 logger = logging.getLogger(__name__)
 
+
 class VectorDBManager:
-    """Manages ChromaDB integration for AF elements indexing and search with improved performance"""
+    """Manages ChromaDB integration for AF elements and attributes indexing with semantic search"""
     
     def __init__(self):
         self._client = None
         self._collection = None
         self._last_index_time = None
-        self._initialization_lock = asyncio.Lock() if asyncio._get_running_loop() else None
+        self._initialization_lock = None
         self._client_initialized = False
         
     async def _get_lock(self):
         """Get or create async lock for current event loop"""
         if self._initialization_lock is None:
-            self._initialization_lock = asyncio.Lock()
+            try:
+                asyncio.get_running_loop()
+                self._initialization_lock = asyncio.Lock()
+            except RuntimeError:
+                pass
         return self._initialization_lock
         
     def get_client(self) -> chromadb.Client:
@@ -52,10 +71,10 @@ class VectorDBManager:
                     raise ValueError(f"Unsupported client type: {config.chroma.client_type}")
                 
                 self._client_initialized = True
-                logger.debug(f"ChromaDB client initialized: {config.chroma.client_type}")
+                logger.info(f"✅ ChromaDB client initialized: {config.chroma.client_type}")
                 
             except Exception as e:
-                logger.error(f"Failed to initialize ChromaDB client: {e}")
+                logger.error(f"❌ Failed to initialize ChromaDB client: {e}")
                 raise
         
         return self._client
@@ -64,53 +83,81 @@ class VectorDBManager:
         """Get or create collection for AF elements with async protection"""
         if self._collection is None:
             lock = await self._get_lock()
-            async with lock:
-                if self._collection is None:  # Double-check pattern
-                    try:
-                        client = self.get_client()
-                        
-                        # Try to get existing collection first
-                        try:
-                            self._collection = client.get_collection(config.chroma.collection_name)
-                            logger.info(f"Retrieved existing collection: {config.chroma.collection_name}")
-                        except Exception:
-                            # Create new collection if it doesn't exist
-                            self._collection = client.create_collection(
-                                name=config.chroma.collection_name,
-                                metadata={"description": "AF Elements hierarchical index"}
-                            )
-                            logger.info(f"Created new collection: {config.chroma.collection_name}")
-                            
-                    except Exception as e:
-                        logger.error(f"Failed to get/create collection: {e}")
-                        raise
+            if lock:
+                async with lock:
+                    if self._collection is None:  # Double-check pattern
+                        await self._create_collection()
+            else:
+                # Fallback for non-async contexts
+                await self._create_collection()
         
         return self._collection
     
-    def prepare_element_for_indexing(self, element: Dict[str, Any]) -> Tuple[str, str, Dict[str, Any]]:
-        """Prepare an AF element for vector indexing with enhanced content"""
-        # Create searchable document text with better structure
+    async def _create_collection(self):
+        """Internal method to create or get collection"""
+        try:
+            client = self.get_client()
+            
+            # Try to get existing collection first
+            try:
+                self._collection = client.get_collection(config.chroma.collection_name)
+                logger.info(f"Retrieved existing collection: {config.chroma.collection_name}")
+            except Exception:
+                # Create new collection if it doesn't exist
+                self._collection = client.create_collection(
+                    name=config.chroma.collection_name,
+                    metadata={
+                        "description": "AF Elements with integrated attributes for semantic search",
+                        "version": "2.0",
+                        "created_at": datetime.now().isoformat()
+                    }
+                )
+                logger.info(f"Created new collection: {config.chroma.collection_name}")
+                
+        except Exception as e:
+            logger.error(f"Failed to get/create collection: {e}")
+            raise
+    
+    def prepare_element_for_indexing(
+        self, 
+        element: Dict[str, Any], 
+        attributes: List[Dict[str, Any]] = None
+    ) -> Tuple[str, str, Dict[str, Any]]:
+        """
+        Prepare an AF element AND its attributes for vector indexing
+        
+        This is the core indexing method that creates searchable documents
+        including both element and attribute information.
+        
+        Args:
+            element: AF Element data from PI Web API
+            attributes: Optional list of element's attributes
+            
+        Returns:
+            Tuple of (document_text, element_id, metadata)
+        """
         doc_parts = []
         
-        # Basic element info
+        # ============================================================
+        # ELEMENT INFORMATION
+        # ============================================================
         name = element.get('Name', '')
         description = element.get('Description', '')
         
         doc_parts.append(f"Element Name: {name}")
+        
         if description and description.strip():
             doc_parts.append(f"Description: {description}")
         
-        # Path information - enhanced processing
+        # Path information - enhanced processing for better search
         path = element.get('Path', '')
         if path:
-            # Extract path components for better search
             path_parts = [p.strip() for p in path.split('\\') if p.strip()]
             doc_parts.append(f"Full Path: {path}")
             
-            # Skip server and database parts, keep all business-relevant components
-            # Typical structure: ['', 'SERVER', 'DATABASE', 'Area', 'Unit', 'Equipment', ...]
+            # Skip server and database parts, keep business-relevant hierarchy
             if len(path_parts) > 2:
-                business_path_parts = path_parts[2:]  # Skip server and database
+                business_path_parts = path_parts[2:]
                 if business_path_parts:
                     doc_parts.append(f"Business Hierarchy: {' > '.join(business_path_parts)}")
                     doc_parts.append(f"Location Path: {' '.join(business_path_parts)}")
@@ -130,7 +177,7 @@ class VectorDBManager:
                 doc_parts.append(f"Equipment Category: {category}")
                 doc_parts.append(f"Type: {category}")
         
-        # Add element type information
+        # Element type information
         if element.get('HasChildren', False):
             doc_parts.append("Element Type: Container")
             doc_parts.append("Has Sub-elements: Yes")
@@ -138,11 +185,59 @@ class VectorDBManager:
             doc_parts.append("Element Type: Leaf Node")
             doc_parts.append("Has Sub-elements: No")
         
+        # ============================================================
+        # ATTRIBUTE INFORMATION (INTEGRATED)
+        # ============================================================
+        attribute_names = []
+        attribute_keywords = []
+        attribute_units = []
+        
+        if attributes and len(attributes) > 0:
+            doc_parts.append(f"\n=== Available Measurements and Data Points ({len(attributes)} attributes) ===")
+            
+            for attr in attributes:
+                attr_name = attr.get('Name', '')
+                attr_type = attr.get('Type', '')
+                units = attr.get('DefaultUnitsNameAbbreviation', '')
+                data_ref = attr.get('DataReferencePlugIn', '')
+                description = attr.get('Description', '') 
+                
+                # Build attribute description for document
+                attr_line = f"Attribute: {attr_name}"
+                if description:  # ← ADD THIS
+                    attr_line += f" - {description}"
+                if units:
+                    attr_line += f" (Units: {units})"
+                    attribute_units.append(units)
+                    
+                if attr_type:
+                    attr_line += f" [Type: {attr_type}]"
+                
+                doc_parts.append(attr_line)
+                attribute_names.append(attr_name)
+                
+                # Extract engineering keywords from attribute name
+                keywords = self._extract_attribute_keywords(attr_name)
+                attribute_keywords.extend(keywords)
+            
+            # Add consolidated keywords section for better semantic search
+            if attribute_keywords:
+                unique_keywords = list(set(attribute_keywords))
+                doc_parts.append(f"\nMeasurement Types Available: {', '.join(unique_keywords)}")
+                
+            # Add units summary
+            if attribute_units:
+                unique_units = list(set(attribute_units))
+                doc_parts.append(f"Units of Measurement: {', '.join(unique_units)}")
+        
         # Join all parts with proper spacing
         document_text = "\n".join(doc_parts)
         
-        # Create comprehensive metadata
+        # ============================================================
+        # METADATA - Enhanced with Attribute Flags
+        # ============================================================
         metadata = {
+            # Element core metadata
             "webid": element.get('WebId', ''),
             "element_id": element.get('Id', ''),
             "name": name,
@@ -157,13 +252,12 @@ class VectorDBManager:
         if template_name and template_name in AF_TEMPLATE_CATEGORIES:
             metadata["template_category"] = AF_TEMPLATE_CATEGORIES[template_name]
         
-        # Add enhanced path level information
+        # Enhanced path level information
         if path:
             path_parts = [p.strip() for p in path.split('\\') if p.strip()]
             total_path_level = len(path_parts)
-            
-            # Business path level (excluding server and database)
             business_path_level = max(0, total_path_level - 2)
+            
             metadata["path_level"] = total_path_level
             metadata["business_path_level"] = business_path_level
             
@@ -179,13 +273,51 @@ class VectorDBManager:
                     level_key = f"hierarchy_{hierarchy_levels[i]}"
                     metadata[level_key] = component
                 
-                # Store parent information
+                # Store parent information for traversal
                 if len(business_components) >= 1:
                     metadata["parent_area"] = business_components[0]
                 if len(business_components) >= 2:
                     metadata["equipment_unit"] = business_components[1]
                 if len(business_components) >= 3:
                     metadata["equipment_name"] = business_components[2]
+        
+        # ============================================================
+        # ATTRIBUTE METADATA FLAGS - NEW!
+        # ============================================================
+        if attributes:
+            metadata["attribute_count"] = len(attributes)
+            
+            # Store attribute names (limited to avoid size issues)
+            metadata["attribute_names"] = json.dumps([a.get('Name', '') for a in attributes[:30]])
+            
+            # Boolean flags for common measurement types - enables quick filtering
+            attr_names_lower = [a.get('Name', '').lower() for a in attributes]
+            
+            metadata["has_healthscore"] = any('health' in name for name in attr_names_lower)
+            metadata["has_temperature"] = any('temp' in name for name in attr_names_lower)
+            metadata["has_pressure"] = any('pres' in name for name in attr_names_lower)
+            metadata["has_vibration"] = any('vibr' in name for name in attr_names_lower)
+            metadata["has_current"] = any('curr' in name or 'amp' in name for name in attr_names_lower)
+            metadata["has_voltage"] = any('volt' in name for name in attr_names_lower)
+            metadata["has_power"] = any('pow' in name or 'watt' in name for name in attr_names_lower)
+            metadata["has_flow"] = any('flow' in name for name in attr_names_lower)
+            metadata["has_humidity"] = any('humid' in name for name in attr_names_lower)
+            metadata["has_status"] = any('status' in name or 'state' in name for name in attr_names_lower)
+            metadata["has_alarm"] = any('alarm' in name or 'alert' in name for name in attr_names_lower)
+            
+            # Store measurement types as JSON array
+            if attribute_keywords:
+                unique_keywords = list(set(attribute_keywords))
+                metadata["measurement_types"] = json.dumps(unique_keywords[:15])  # Limit to 15
+            
+            # Store units if available
+            if attribute_units:
+                unique_units = list(set(attribute_units))
+                metadata["units"] = json.dumps(unique_units[:10])
+        else:
+            metadata["attribute_count"] = 0
+            metadata["has_healthscore"] = False
+            metadata["has_temperature"] = False
         
         # Add searchable keywords
         keywords = []
@@ -196,7 +328,11 @@ class VectorDBManager:
         if description:
             # Extract meaningful words from description
             desc_words = [w.strip().lower() for w in description.split() if len(w.strip()) > 2]
-            keywords.extend(desc_words[:5])  # Limit to first 5 words
+            keywords.extend(desc_words[:5])
+        
+        # Add attribute keywords
+        if attribute_keywords:
+            keywords.extend(attribute_keywords[:10])
         
         metadata["keywords"] = " ".join(keywords)
         
@@ -205,8 +341,132 @@ class VectorDBManager:
         
         return document_text, element_id, metadata
     
+    def _extract_attribute_keywords(self, attr_name: str) -> List[str]:
+        """
+        Extract engineering keywords from attribute names
+        
+        This helps with semantic search by identifying measurement types
+        even when users don't use exact attribute names.
+        
+        Args:
+            attr_name: Attribute name from PI AF
+            
+        Returns:
+            List of engineering keywords
+        """
+        keywords = []
+        attr_lower = attr_name.lower()
+        
+        # Comprehensive measurement type mapping
+        measurement_map = {
+            # Temperature
+            'temp': 'temperature',
+            'degc': 'temperature',
+            'degf': 'temperature',
+            
+            # Pressure
+            'pres': 'pressure',
+            'press': 'pressure',
+            'psi': 'pressure',
+            'bar': 'pressure',
+            'pa': 'pressure',
+            
+            # Flow
+            'flow': 'flow_rate',
+            'gpm': 'flow_rate',
+            'lpm': 'flow_rate',
+            'm3/h': 'flow_rate',
+            
+            # Electrical
+            'volt': 'voltage',
+            'curr': 'current',
+            'amp': 'current',
+            'pow': 'power',
+            'watt': 'power',
+            'kw': 'power',
+            'mw': 'power',
+            'freq': 'frequency',
+            'hz': 'frequency',
+            'pf': 'power_factor',
+            
+            # Mechanical
+            'vibr': 'vibration',
+            'accel': 'acceleration',
+            'speed': 'speed',
+            'rpm': 'speed',
+            'torque': 'torque',
+            
+            # Environmental
+            'humid': 'humidity',
+            'rh': 'humidity',
+            
+            # Levels
+            'level': 'level',
+            'height': 'level',
+            'dc': 'health_score',      # Data Center score
+            'eyd': 'health_score',     # End Year Degradation
+            'myd': 'health_score',     # Mid Year Degradation  
+            'net': 'health_score',
+            # Health and Status
+            'health': 'health_score',
+            'condition': 'health_score',
+            'status': 'status',
+            'state': 'status',
+            'alarm': 'alarm',
+            'alert': 'alarm',
+            'warning': 'alarm',
+            'fault': 'fault',
+            'error': 'error',
+            
+            # Control
+            'setpoint': 'setpoint',
+            'sp': 'setpoint',
+            'pv': 'process_value',
+            'mv': 'manipulated_variable',
+            'output': 'control_output',
+            
+            # Performance
+            'efficiency': 'efficiency',
+            'eff': 'efficiency',
+            'utilization': 'utilization',
+            'load': 'load',
+            'capacity': 'capacity',
+            
+            # Quality
+            'quality': 'data_quality',
+            'reliability': 'reliability'
+        }
+        
+        # Check for matches
+        for key, value in measurement_map.items():
+            if key in attr_lower:
+                keywords.append(value)
+        
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_keywords = []
+        for k in keywords:
+            if k not in seen:
+                seen.add(k)
+                unique_keywords.append(k)
+        
+        return unique_keywords
+    
     async def index_af_elements(self, elements: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Index AF elements in ChromaDB with improved batch processing and error handling"""
+        """
+        Index AF elements WITH their attributes in ChromaDB
+        
+        This is the main indexing method that:
+        1. Fetches attributes for each element from PI Web API
+        2. Creates searchable documents with element + attribute info
+        3. Indexes in batches for performance
+        
+        Args:
+            elements: List of AF element dictionaries from PI Web API
+            
+        Returns:
+            Indexing result with statistics
+        """
         start_time = time.time()
         
         try:
@@ -216,40 +476,71 @@ class VectorDBManager:
                 logger.warning("No elements provided for indexing")
                 return {"success": False, "error": "No elements provided", "indexed_count": 0}
             
-            logger.info(f"Starting indexing of {len(elements)} AF elements")
+            logger.info(f"🔄 Starting indexing of {len(elements)} AF elements WITH attributes")
             
             # Clear existing elements to avoid duplicates
             try:
                 collection.delete(where={"element_type": "af_element"})
-                logger.info("Cleared existing AF elements from collection")
+                logger.info("🗑️  Cleared existing AF elements from collection")
             except Exception as e:
                 logger.warning(f"Could not clear existing elements: {e}")
             
-            # Prepare all elements for indexing
+            # Import PI client for fetching attributes
+            # Note: Import here to avoid circular dependency
+            try:
+                from pi_mcp_server import get_pi_client
+                client = get_pi_client()
+            except ImportError:
+                logger.error("Cannot import get_pi_client - indexing without attributes")
+                client = None
+            
             documents = []
             metadatas = []
             ids = []
             
             processed_count = 0
             skipped_count = 0
+            attributes_fetched = 0
             
             for i, element in enumerate(elements):
                 try:
-                    doc_text, element_id, metadata = self.prepare_element_for_indexing(element)
-                    
-                    # Skip elements with empty names or paths
+                    # Skip elements with missing required fields
                     if not element.get('Name') or not element.get('Path'):
                         skipped_count += 1
                         continue
+                    
+                    # Fetch attributes for this element
+                    element_web_id = element.get('WebId')
+                    attributes = []
+                    
+                    if element_web_id and client:
+                        try:
+                            # Get attributes for this element
+                            attrs_response = await client.get(
+                                f"/elements/{element_web_id}/attributes",
+                                params={
+                                    "maxCount": 100,  # Get up to 100 attributes
+                                    "selectedFields": "Items.Name;Items.WebId;Items.Type;Items.DescriptionñItems.DefaultUnitsNameAbbreviation;Items.DataReferencePlugIn"
+                                }
+                            )
+                            attributes = attrs_response.get("Items", [])
+                            attributes_fetched += len(attributes)
+                            
+                        except Exception as e:
+                            logger.debug(f"Could not fetch attributes for {element.get('Name')}: {e}")
+                            # Continue without attributes - element will still be indexed
+                    
+                    # Prepare element WITH attributes for indexing
+                    doc_text, element_id, metadata = self.prepare_element_for_indexing(element, attributes)
                     
                     documents.append(doc_text)
                     metadatas.append(metadata)
                     ids.append(element_id)
                     processed_count += 1
                     
-                    # Progress logging every 50 elements
-                    if (i + 1) % 50 == 0:
-                        logger.info(f"Prepared {i + 1}/{len(elements)} elements for indexing")
+                    # Progress logging every 25 elements
+                    if (i + 1) % 25 == 0:
+                        logger.info(f"📊 Prepared {i + 1}/{len(elements)} elements (avg {attributes_fetched//(i+1)} attrs/element)")
                         # Allow other async tasks to run
                         await asyncio.sleep(0.01)
                         
@@ -266,10 +557,10 @@ class VectorDBManager:
                     "skipped_count": skipped_count
                 }
             
-            logger.info(f"Prepared {processed_count} elements, skipped {skipped_count}")
+            logger.info(f"✅ Prepared {processed_count} elements, {attributes_fetched} attributes, skipped {skipped_count}")
             
             # Add to collection in optimized batches
-            batch_size = min(config.indexing.batch_size, 100)  # Cap at 100 for stability
+            batch_size = min(config.indexing.batch_size, 50)
             indexed_count = 0
             batch_errors = 0
             
@@ -287,15 +578,14 @@ class VectorDBManager:
                     )
                     
                     indexed_count += len(batch_docs)
-                    logger.info(f"Indexed batch {i//batch_size + 1}: {indexed_count}/{len(documents)} elements")
+                    logger.info(f"💾 Indexed batch {i//batch_size + 1}: {indexed_count}/{len(documents)} elements")
                     
-                    # Small delay between batches to prevent overwhelming the system
+                    # Small delay between batches
                     await asyncio.sleep(0.1)
                     
                 except Exception as e:
                     logger.error(f"Error indexing batch {i//batch_size + 1}: {e}")
                     batch_errors += 1
-                    # Continue with next batch rather than failing completely
                     continue
             
             # Update last index time
@@ -308,22 +598,24 @@ class VectorDBManager:
                 "indexed_count": indexed_count,
                 "total_elements": len(elements),
                 "processed_elements": processed_count,
+                "attributes_fetched": attributes_fetched,
                 "skipped_count": skipped_count,
                 "batch_errors": batch_errors,
                 "indexed_at": self._last_index_time.isoformat(),
-                "elapsed_seconds": round(elapsed_time, 2)
+                "elapsed_seconds": round(elapsed_time, 2),
+                "avg_attributes_per_element": round(attributes_fetched / processed_count, 1) if processed_count > 0 else 0
             }
             
             if batch_errors > 0:
                 result["warning"] = f"{batch_errors} batches failed during indexing"
             
-            logger.info(f"Indexing completed in {elapsed_time:.2f}s: {indexed_count} elements indexed")
+            logger.info(f"🎉 Indexing completed in {elapsed_time:.2f}s: {indexed_count} elements with {attributes_fetched} attributes")
             return result
             
         except Exception as e:
             elapsed_time = time.time() - start_time
             error_msg = f"Failed to index AF elements: {str(e)}"
-            logger.error(error_msg)
+            logger.error(f"❌ {error_msg}")
             return {
                 "success": False,
                 "error": str(e),
@@ -331,28 +623,42 @@ class VectorDBManager:
                 "elapsed_seconds": round(elapsed_time, 2)
             }
     
-    async def search_af_elements(self, query: str, n_results: int = 10, filters: Optional[Dict] = None) -> List[Dict[str, Any]]:
-        """Search AF elements using vector similarity with improved error handling"""
+    async def search_af_elements(
+        self, 
+        query: str, 
+        n_results: int = 10, 
+        filters: Optional[Dict] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Search AF elements using vector similarity with improved error handling
+        
+        This searches across element names, paths, templates, AND attributes.
+        
+        Args:
+            query: Natural language search query
+            n_results: Maximum number of results
+            filters: Optional metadata filters (e.g., {"template_name": "BuswayJoint"})
+            
+        Returns:
+            List of matching elements with metadata and similarity scores
+        """
         try:
             collection = await self.get_collection()
             
             # Build where clause for filtering
             where_clause = {"element_type": "af_element"}
             if filters:
-                # Handle different filter types properly
                 for key, value in filters.items():
                     if isinstance(value, (str, int, float, bool)):
                         where_clause[key] = value
                     elif isinstance(value, list):
-                        # For list filters, we might need to use $in operator
-                        # This depends on ChromaDB version and capabilities
                         where_clause[key] = {"$in": value}
             
-            # Perform vector search with error handling
+            # Perform vector search
             try:
                 results = collection.query(
                     query_texts=[query],
-                    n_results=min(n_results, 100),  # Cap results for performance
+                    n_results=min(n_results, 100),
                     where=where_clause,
                     include=["metadatas", "documents", "distances"]
                 )
@@ -387,7 +693,16 @@ class VectorDBManager:
                         "business_hierarchy": metadata.get("business_hierarchy", ""),
                         "business_path_level": metadata.get("business_path_level", 0),
                         "similarity_score": 1 - results["distances"][0][i] if results["distances"][0] else 0.5,
-                        "document_text": results["documents"][0][i] if results["documents"] else ""
+                        
+                        # Attribute information
+                        "attribute_count": metadata.get("attribute_count", 0),
+                        "has_healthscore": metadata.get("has_healthscore", False),
+                        "has_temperature": metadata.get("has_temperature", False),
+                        "has_vibration": metadata.get("has_vibration", False),
+                        "measurement_types": json.loads(metadata.get("measurement_types", "[]")),
+                        
+                        # Document preview for debugging
+                        "document_preview": results["documents"][0][i][:200] + "..." if results["documents"] else ""
                     }
                     formatted_results.append(result)
             
@@ -398,21 +713,15 @@ class VectorDBManager:
             return []
     
     async def get_elements_by_template(self, template_name: str, n_results: int = 50) -> List[Dict[str, Any]]:
-        """Get elements by template name with enhanced filtering"""
+        """Get elements by exact template name match"""
         try:
             collection = await self.get_collection()
             
-            # Use get method for exact template matching
-            try:
-                results = collection.get(
-                    where={"template_name": template_name},
-                    limit=min(n_results, 200),  # Reasonable limit
-                    include=["metadatas", "documents"]
-                )
-            except Exception as e:
-                logger.warning(f"Template search failed, trying case-insensitive: {e}")
-                # Try with vector search as fallback
-                return await self.search_af_elements(f"template {template_name}", n_results)
+            results = collection.get(
+                where={"template_name": template_name},
+                limit=min(n_results, 200),
+                include=["metadatas", "documents"]
+            )
             
             formatted_results = []
             if results["ids"]:
@@ -428,7 +737,8 @@ class VectorDBManager:
                         "template_category": metadata.get("template_category", ""),
                         "has_children": metadata.get("has_children", False),
                         "business_hierarchy": metadata.get("business_hierarchy", ""),
-                        "document_text": results["documents"][i] if results["documents"] else ""
+                        "attribute_count": metadata.get("attribute_count", 0),
+                        "has_healthscore": metadata.get("has_healthscore", False)
                     }
                     formatted_results.append(result)
             
@@ -438,36 +748,12 @@ class VectorDBManager:
             logger.error(f"Failed to get elements by template: {str(e)}")
             return []
     
-    async def get_elements_by_path_pattern(self, path_pattern: str, n_results: int = 50) -> List[Dict[str, Any]]:
-        """Get elements by path pattern with improved matching"""
-        try:
-            # Use vector search with path-focused query
-            query = f"path location {path_pattern}"
-            results = await self.search_af_elements(query, n_results * 2)  # Get more to filter
-            
-            # Filter by path in post-processing for better accuracy
-            filtered_results = []
-            pattern_lower = path_pattern.lower()
-            
-            for r in results:
-                path_lower = r.get("path", "").lower()
-                hierarchy_lower = r.get("business_hierarchy", "").lower()
-                
-                if (pattern_lower in path_lower or 
-                    pattern_lower in hierarchy_lower or
-                    any(pattern_lower in part.lower() for part in path_lower.split('\\') if part)):
-                    filtered_results.append(r)
-                    
-                if len(filtered_results) >= n_results:
-                    break
-            
-            return filtered_results
-            
-        except Exception as e:
-            logger.error(f"Failed to get elements by path pattern: {str(e)}")
-            return []
-    
-    async def get_elements_by_hierarchy_level(self, level: str, value: str, n_results: int = 50) -> List[Dict[str, Any]]:
+    async def get_elements_by_hierarchy_level(
+        self, 
+        level: str, 
+        value: str, 
+        n_results: int = 50
+    ) -> List[Dict[str, Any]]:
         """Get elements by specific hierarchy level (area, unit, equipment, etc.)"""
         try:
             collection = await self.get_collection()
@@ -504,7 +790,7 @@ class VectorDBManager:
                         "business_hierarchy": metadata.get("business_hierarchy", ""),
                         "hierarchy_level": level,
                         "hierarchy_value": value,
-                        "document_text": results["documents"][i] if results["documents"] else ""
+                        "attribute_count": metadata.get("attribute_count", 0)
                     }
                     formatted_results.append(result)
             
@@ -515,18 +801,23 @@ class VectorDBManager:
             return []
     
     async def clear_collection(self) -> bool:
-        """Clear all elements from the collection with proper error handling"""
+        """Clear all elements from the collection"""
         try:
             lock = await self._get_lock()
-            async with lock:
+            if lock:
+                async with lock:
+                    client = self.get_client()
+                    client.delete_collection(config.chroma.collection_name)
+                    self._collection = None
+                    self._last_index_time = None
+                    logger.info(f"🗑️  Cleared collection: {config.chroma.collection_name}")
+                    return True
+            else:
+                # Non-async fallback
                 client = self.get_client()
-                
-                # Delete the collection
                 client.delete_collection(config.chroma.collection_name)
                 self._collection = None
                 self._last_index_time = None
-                
-                logger.info(f"Cleared collection: {config.chroma.collection_name}")
                 return True
                 
         except Exception as e:
@@ -534,12 +825,12 @@ class VectorDBManager:
             return False
     
     async def get_collection_stats(self) -> Dict[str, Any]:
-        """Get collection statistics with comprehensive information"""
+        """Get comprehensive collection statistics"""
         try:
             collection = await self.get_collection()
             count = collection.count()
             
-            # Try to get some sample metadata for stats
+            # Get sample for statistics
             sample_data = None
             try:
                 sample = collection.get(limit=1, include=["metadatas"])
@@ -548,6 +839,7 @@ class VectorDBManager:
             except Exception:
                 pass
             
+            # Get counts by measurement type flags
             stats = {
                 "total_elements": count,
                 "collection_name": config.chroma.collection_name,
@@ -559,6 +851,18 @@ class VectorDBManager:
             
             if sample_data:
                 stats["sample_metadata_keys"] = list(sample_data.keys())
+            
+            # Try to get measurement type statistics
+            try:
+                health_count = collection.count(where={"has_healthscore": True})
+                temp_count = collection.count(where={"has_temperature": True})
+                vibration_count = collection.count(where={"has_vibration": True})
+                
+                stats["elements_with_healthscore"] = health_count
+                stats["elements_with_temperature"] = temp_count
+                stats["elements_with_vibration"] = vibration_count
+            except Exception:
+                pass
                 
             return stats
             
@@ -571,7 +875,7 @@ class VectorDBManager:
             }
     
     def should_refresh_index(self) -> bool:
-        """Check if index should be refreshed with improved logic"""
+        """Check if index should be refreshed"""
         if not config.indexing.enabled:
             logger.debug("Indexing is disabled")
             return False
@@ -594,7 +898,6 @@ class VectorDBManager:
     async def health_check(self) -> Dict[str, Any]:
         """Perform health check on vector database"""
         try:
-            # Test basic connectivity
             collection = await self.get_collection()
             count = collection.count()
             
@@ -608,7 +911,8 @@ class VectorDBManager:
                 "total_elements": count,
                 "search_test_time_ms": round(search_time, 2),
                 "last_indexed": self._last_index_time.isoformat() if self._last_index_time else None,
-                "client_type": config.chroma.client_type
+                "client_type": config.chroma.client_type,
+                "collection_name": config.chroma.collection_name
             }
             
         except Exception as e:
@@ -617,6 +921,7 @@ class VectorDBManager:
                 "error": str(e),
                 "client_type": config.chroma.client_type
             }
+
 
 # Global vector database manager instance
 vector_db = VectorDBManager()
