@@ -520,7 +520,7 @@ class VectorDBManager:
                                 f"/elements/{element_web_id}/attributes",
                                 params={
                                     "maxCount": 100,  # Get up to 100 attributes
-                                    "selectedFields": "Items.Name;Items.WebId;Items.Type;Items.DescriptionñItems.DefaultUnitsNameAbbreviation;Items.DataReferencePlugIn"
+                                    "selectedFields": "Items.Name;Items.WebId;Items.Type;Items.Description;Items.DefaultUnitsNameAbbreviation;Items.DataReferencePlugIn"
                                 }
                             )
                             attributes = attrs_response.get("Items", [])
