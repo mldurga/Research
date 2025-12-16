@@ -910,7 +910,57 @@ async def get_interpolated_values(
     except Exception as e:
         logger.error(f"Get interpolated values error: {str(e)}")
         return {"error": f"Failed to get interpolated values: {str(e)}"}
-
+@mcp.tool()
+async def batch_get_interpolated_values(
+    stream_web_ids: List[str],
+    start_time: str = "*-1d",
+    end_time: str = "*",
+    interval: str = "1d"
+) -> Dict[str, Any]:
+    """
+    Get interpolated values for MULTIPLE streams in a single call.
+    Use this instead of multiple get_interpolated_values calls.
+    
+    Args:
+        stream_web_ids: List of WebIds (PI Points or AF Attributes)
+        start_time: Start time in PI time format
+        end_time: End time in PI time format
+        interval: Interpolation interval (e.g., '1h', '1d')
+    
+    Returns:
+        Dictionary with results keyed by WebId
+    """
+    try:
+        client = get_pi_client()
+        results = {}
+        errors = []
+        
+        # Use concurrent requests
+        tasks = []
+        for web_id in stream_web_ids:
+            params = {
+                "startTime": start_time,
+                "endTime": end_time,
+                "interval": interval
+            }
+            tasks.append((web_id, client.get(f"/streams/{web_id}/interpolated", params=params)))
+        
+        for web_id, task in tasks:
+            try:
+                data = await task
+                results[web_id] = data.get("Items", [])
+            except Exception as e:
+                errors.append({"web_id": web_id, "error": str(e)})
+        
+        return {
+            "requested_count": len(stream_web_ids),
+            "successful_count": len(results),
+            "time_range": {"start": start_time, "end": end_time, "interval": interval},
+            "results": results,
+            "errors": errors
+        }
+    except Exception as e:
+        return {"error": str(e)}
 # @mcp.tool()
 # async def write_stream_value(
 #     stream_web_id: str,
@@ -1862,4 +1912,3 @@ if __name__ == "__main__":
         except Exception as cleanup_error:
             logger.error(f"Cleanup error: {cleanup_error}")
         exit(1)
- 
