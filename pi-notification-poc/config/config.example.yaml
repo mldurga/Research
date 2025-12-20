@@ -1,0 +1,151 @@
+# PI Notification POC - Example Configuration
+# Copy this file to config.yaml and customize for your environment
+
+# Email Configuration
+email:
+  # Subject line to monitor (case-insensitive partial match)
+  # The system will process any email containing this text in the subject
+  target_subject: "PI Data Update"
+
+  # Outlook folder to monitor
+  folder_name: "Inbox"
+
+  # How often to check for new emails (in seconds)
+  # 60 = check every minute
+  check_interval: 60
+
+  # Mark emails as read after processing
+  mark_as_read: true
+
+  # Move processed emails to a specific folder (set to null to keep in Inbox)
+  processed_folder: "Processed PI Updates"
+
+# PDF Configuration
+pdf:
+  # Temporary directory for PDF extraction
+  temp_dir: "./temp_pdfs"
+
+  # Maximum PDF size in MB (larger files will be skipped)
+  max_size_mb: 50
+
+  # Extract images from PDF (currently not implemented)
+  extract_images: false
+
+# Ollama Configuration
+ollama:
+  # Ollama service URL (localhost for Windows service installation)
+  base_url: "http://localhost:11434"
+
+  # Model to use for text extraction/processing
+  # Available models: llama3.2, llama2, mistral, etc.
+  # Run 'ollama list' to see installed models
+  model: "llama3.2"
+
+  # Timeout for Ollama requests in seconds
+  # Increase for large documents or slower systems
+  timeout: 300
+
+  # Temperature for LLM inference (0.0 to 1.0)
+  # Lower = more deterministic, Higher = more creative
+  # Use 0.1 for data extraction (we want consistency)
+  temperature: 0.1
+
+  # System prompt for data extraction
+  # Customize this based on your PDF format and data structure
+  system_prompt: |
+    You are a data extraction assistant for industrial process data.
+    Extract key-value pairs from the provided text.
+
+    Focus on extracting:
+    - Tag names (e.g., TIC-101, PIC-201, FIC-301)
+    - Numerical values
+    - Units of measurement
+    - Timestamps (if available)
+
+    Return the data in a JSON array format with the following fields:
+    - tag_name: The PI tag/sensor identifier
+    - value: The numerical value (as a number, not string)
+    - timestamp: The timestamp in ISO format (YYYY-MM-DDTHH:MM:SS)
+    - unit: The unit of measurement (if available)
+    - description: Any relevant description (optional)
+
+    If multiple data points are present, return them as a JSON array.
+    If no data is found, return an empty array [].
+
+    Return ONLY valid JSON, no additional text or markdown.
+
+# PI System Configuration
+pi:
+  # PI Data Archive server name
+  # Replace with your actual PI server name
+  server_name: "YOUR_PI_SERVER"
+
+  # Authentication method: "windows" or "explicit"
+  # "windows" uses current Windows user credentials
+  # "explicit" uses username/password below
+  auth_method: "windows"
+
+  # For explicit authentication only (leave empty for Windows auth)
+  username: ""
+  password: ""
+
+  # Connection timeout in seconds
+  timeout: 30
+
+  # Retry attempts for failed writes
+  retry_attempts: 3
+
+  # Delay between retries in seconds
+  retry_delay: 5
+
+  # Optional tag prefix to add to all tag names
+  # Example: if tag_prefix is "EMAIL_" and tag_name is "TIC-101"
+  # the system will write to "EMAIL_TIC-101"
+  tag_prefix: "EMAIL_"
+
+# Logging Configuration
+logging:
+  # Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  # Use DEBUG for troubleshooting, INFO for normal operation
+  level: "INFO"
+
+  # Log file path (relative or absolute)
+  file_path: "./logs/pi_notification.log"
+
+  # Maximum log file size in MB before rotation
+  max_size_mb: 10
+
+  # Number of backup log files to keep
+  backup_count: 5
+
+  # Log format (Python logging format)
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+  # Also output logs to console
+  console_output: true
+
+# Service Configuration (for Windows Service installation)
+service:
+  # Windows service name (no spaces)
+  name: "PINotificationService"
+
+  # Service display name (shown in services.msc)
+  display_name: "PI Notification Email Processor"
+
+  # Service description
+  description: "Monitors Outlook emails and writes data to PI System using Ollama for extraction"
+
+  # Auto-start service when Windows boots
+  auto_start: true
+
+# Error Handling Configuration
+error_handling:
+  # Continue processing other emails even if one fails
+  continue_on_error: true
+
+  # Send error notifications (not implemented in POC)
+  send_notifications: false
+
+  # Maximum consecutive errors before stopping the service
+  # Prevents infinite error loops
+  max_consecutive_errors: 10
