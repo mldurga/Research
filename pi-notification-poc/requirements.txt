@@ -1,0 +1,25 @@
+# PI Notification POC - Python Dependencies
+# Minimal dependencies for secure ADNOC environment
+
+# Core dependencies
+PyYAML==6.0.1           # Configuration file parsing
+PyPDF2==3.0.1           # PDF text extraction (pure Python, no external deps)
+requests==2.31.0        # HTTP client for Ollama API
+urllib3==2.1.0          # HTTP library (dependency of requests)
+
+# Windows-specific dependencies
+pywin32==306            # Windows COM automation for Outlook
+                        # Note: Requires Windows environment
+
+# PI System integration
+PIconnect==0.10.0       # OSIsoft PI System interface
+                        # Note: Requires PI SDK to be installed on Windows
+
+# Optional dependencies for enhanced functionality
+# python-dateutil==2.8.2  # Date parsing utilities (if needed)
+# certifi==2023.11.17     # SSL certificates (if needed for HTTPS)
+
+# Development dependencies (not needed in production)
+# pytest==7.4.3
+# black==23.12.1
+# pylint==3.0.3
