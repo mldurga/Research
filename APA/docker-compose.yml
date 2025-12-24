@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  apa-mcp-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: apa-mcp-server
+    ports:
+      - "8002:8002"
+    environment:
+      # AVEVA Predictive Analytics API Configuration
+      - APA_BASE_URL=${APA_BASE_URL:-https://localhost/avevapredictiveanalytics}
+      - APA_USERNAME=${APA_USERNAME}
+      - APA_PASSWORD=${APA_PASSWORD}
+      - APA_DOMAIN=${APA_DOMAIN}
+      - APA_VERIFY_SSL=${APA_VERIFY_SSL:-false}
+      - APA_TIMEOUT=${APA_TIMEOUT:-60}
+      - APA_API_VERSION=${APA_API_VERSION:-v1}
+      
+      # Server Configuration
+      - SERVER_PORT=8002
+      - SERVER_HOST=0.0.0.0
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      
+      # Token Settings
+      - TOKEN_REFRESH_BUFFER=${TOKEN_REFRESH_BUFFER:-300}
+    
+    restart: unless-stopped
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    
+    networks:
+      - apa-network
+    
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  apa-network:
+    driver: bridge
