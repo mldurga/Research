@@ -1,5 +1,50 @@
 # VPN Client with Location Switching
 
+A comprehensive Python-based VPN client that supports multiple VPN locations with easy switching capabilities. This implementation provides both a flexible framework for development and a **production-ready client** that connects to **FREE VPN servers worldwide** via VPN Gate.
+
+## 🚀 Quick Start - Production VPN (FREE Servers)
+
+**Want to connect to real FREE VPN servers right now?** See [QUICKSTART.md](QUICKSTART.md)
+
+```bash
+# Install OpenVPN
+sudo bash install.sh
+
+# List available free servers
+sudo python3 vpn_prod.py list
+
+# Connect to server #1
+sudo python3 vpn_prod.py connect 1
+
+# Or connect to a specific country
+sudo python3 vpn_prod.py country Japan
+```
+
+**Features:**
+- ✅ **6000+ FREE VPN servers** worldwide (via VPN Gate)
+- ✅ **60+ countries** available
+- ✅ **Production-ready** - actually connects to real VPN servers
+- ✅ **No registration** or payment required
+- ✅ **OpenVPN protocol** - industry standard
+
+---
+
+## 📖 Two Versions Available
+
+This repository contains **TWO implementations**:
+
+1. **Production VPN Client** (`vpn_prod.py`) - **Ready to use NOW**
+   - Connects to real FREE VPN servers from VPN Gate
+   - No configuration needed
+   - See [QUICKSTART.md](QUICKSTART.md) for usage
+
+2. **VPN Framework** (other files) - For developers
+   - Flexible architecture for building custom VPN clients
+   - Supports custom VPN providers
+   - See sections below for framework documentation
+
+---
+
 A comprehensive Python-based VPN client that supports multiple VPN locations with easy switching capabilities. This implementation provides a flexible framework for managing VPN connections across different geographical locations.
 
 ## Features
@@ -17,6 +62,30 @@ A comprehensive Python-based VPN client that supports multiple VPN locations wit
 ## Architecture
 
 The VPN client consists of several modular components:
+
+### Production Components (Real VPN Connections)
+
+7. **VPNGateAPI** (`vpngate_api.py`)
+   - Fetches real free VPN servers from VPN Gate
+   - Parses CSV server list
+   - Decodes OpenVPN configurations
+   - Filters servers by speed/ping/country
+
+8. **VPNConnectionProd** (`vpn_connection_prod.py`)
+   - Production connection manager
+   - Actually connects to VPN servers (not simulation)
+   - Manages OpenVPN processes
+   - Verifies connections and IP changes
+
+9. **VPN Production CLI** (`vpn_prod.py`)
+   - Command-line interface for production use
+   - Lists real servers, connects, disconnects
+   - Country-based selection
+   - Status monitoring
+
+### Framework Components (Development)
+
+These are for building custom VPN clients:
 
 ### Core Components
 
@@ -327,6 +396,39 @@ This implementation is a framework/demonstration. For production use:
 5. **Kill Switch**: Add network kill switch for connection drops
 6. **Authentication**: Implement proper authentication mechanisms
 
+## Where Can I Run This?
+
+### ✅ Production VPN (`vpn_prod.py`) - Works On:
+
+- **Local Linux Machine** with sudo access ✅ RECOMMENDED
+- **Local macOS** with sudo access ✅ RECOMMENDED
+- **AWS/GCP/Azure/DigitalOcean VM** with root access ✅
+- **VirtualBox/VMware VM** with root access ✅
+- **WSL2 (Windows Subsystem for Linux)** with root access ✅
+- **Docker** with `--privileged --cap-add=NET_ADMIN` flags ✅
+
+### ❌ Production VPN - Does NOT Work On:
+
+- **GitHub Actions** ❌ - No root access, network restrictions
+- **GitHub Codespaces** ❌ - No root access for VPN
+- **Docker** without `--privileged` ❌ - Cannot create network interfaces
+- **Shared hosting** ❌ - No root access
+- **Windows (directly)** ❌ - Use WSL2 instead
+
+### ✅ Framework/Demo - Works Everywhere:
+
+The framework components (`vpn_client.py`, `vpn_cli.py`, `example_usage.py`) work in **any Python environment** including GitHub Actions/Codespaces, but only demonstrate the architecture (simulate connections).
+
+### Quick Test:
+
+```bash
+# Test if you can run production VPN
+sudo python3 vpn_prod.py list
+
+# If this works, you're good to go!
+# If not, you're on a restricted environment
+```
+
 ## Troubleshooting
 
 ### Connection Issues
@@ -380,6 +482,12 @@ For issues or questions:
 
 ---
 
-**Version**: 1.0.0
-**Author**: VPN Client Development Team
+**Version**: 2.0.0 (Production Ready)
+**VPN Provider**: VPN Gate (University of Tsukuba, Japan)
 **Last Updated**: 2026-01-11
+
+## Credits
+
+- **VPN Gate Project**: https://www.vpngate.net/ - Free VPN relay service by volunteers
+- **University of Tsukuba, Japan** - Academic research project
+- **OpenVPN**: https://openvpn.net/ - Industry standard VPN protocol

@@ -3,8 +3,8 @@ VPN Location Model
 Represents a VPN server location with connection details
 """
 
-from dataclasses import dataclass
-from typing import Optional
+from dataclasses import dataclass, field
+from typing import Optional, Dict, Any
 
 
 @dataclass
@@ -21,6 +21,7 @@ class VPNLocation:
     username: Optional[str] = None
     password: Optional[str] = None
     config_file: Optional[str] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
     def __str__(self) -> str:
         return f"{self.name} ({self.city}, {self.country})"
@@ -37,10 +38,14 @@ class VPNLocation:
             "protocol": self.protocol,
             "username": self.username,
             "password": self.password,
-            "config_file": self.config_file
+            "config_file": self.config_file,
+            "metadata": self.metadata
         }
 
     @classmethod
     def from_dict(cls, data: dict) -> 'VPNLocation':
         """Create location from dictionary"""
+        # Handle metadata field for backward compatibility
+        if 'metadata' not in data:
+            data['metadata'] = {}
         return cls(**data)
