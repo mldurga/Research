@@ -31,6 +31,7 @@ sudo python3 vpn_prod.py country Japan
 
 **Want to use VPN on your iPhone?** See [IPHONE_SETUP.md](IPHONE_SETUP.md)
 
+### Option 1: Local Server (Same WiFi)
 ```bash
 # On your computer, start the web server
 cd vpn
@@ -43,11 +44,22 @@ bash start_iphone_server.sh
 # 4. Open in OpenVPN Connect and connect!
 ```
 
+### Option 2: Free Cloud Hosting (Access Anywhere) ⭐ RECOMMENDED
+Deploy the web server for FREE on cloud platforms:
+- **Render.com** - Easiest, 2-click deploy
+- **Oracle Cloud** - Best specs (24GB RAM free!)
+- **Railway.app** - Fast, $5 credit/month
+- **PythonAnywhere** - Python specialist, always-on
+
+See [FREE_HOSTING.md](FREE_HOSTING.md) for all free hosting options!
+See [deploy_instructions.md](deploy_instructions.md) for one-click deployments!
+
 **How it works:**
 - 🌐 Web interface accessible from iPhone Safari
 - 📥 Download `.ovpn` configs directly to iPhone
 - 🔌 Use OpenVPN Connect app (free from App Store)
 - 🌍 Same free servers as desktop version
+- ☁️ Deploy FREE on cloud for worldwide access
 
 ---
 
