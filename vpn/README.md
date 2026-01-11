@@ -27,18 +27,46 @@ sudo python3 vpn_prod.py country Japan
 - ✅ **No registration** or payment required
 - ✅ **OpenVPN protocol** - industry standard
 
+## 📱 Quick Start - iPhone/iPad
+
+**Want to use VPN on your iPhone?** See [IPHONE_SETUP.md](IPHONE_SETUP.md)
+
+```bash
+# On your computer, start the web server
+cd vpn
+bash start_iphone_server.sh
+
+# On your iPhone:
+# 1. Install "OpenVPN Connect" app from App Store (FREE)
+# 2. Open Safari and go to: http://YOUR_COMPUTER_IP:5000
+# 3. Download VPN config
+# 4. Open in OpenVPN Connect and connect!
+```
+
+**How it works:**
+- 🌐 Web interface accessible from iPhone Safari
+- 📥 Download `.ovpn` configs directly to iPhone
+- 🔌 Use OpenVPN Connect app (free from App Store)
+- 🌍 Same free servers as desktop version
+
 ---
 
-## 📖 Two Versions Available
+## 📖 Three Versions Available
 
-This repository contains **TWO implementations**:
+This repository contains **THREE implementations**:
 
-1. **Production VPN Client** (`vpn_prod.py`) - **Ready to use NOW**
+1. **Production VPN Client** (`vpn_prod.py`) - **Linux/macOS**
    - Connects to real FREE VPN servers from VPN Gate
    - No configuration needed
    - See [QUICKSTART.md](QUICKSTART.md) for usage
 
-2. **VPN Framework** (other files) - For developers
+2. **iPhone/iPad VPN** (`vpn_web_server.py`) - **iOS devices**
+   - Web interface for iPhone/iPad access
+   - Download .ovpn configs via Safari
+   - Use with OpenVPN Connect app
+   - See [IPHONE_SETUP.md](IPHONE_SETUP.md) for usage
+
+3. **VPN Framework** (other files) - For developers
    - Flexible architecture for building custom VPN clients
    - Supports custom VPN providers
    - See sections below for framework documentation
@@ -82,6 +110,27 @@ The VPN client consists of several modular components:
    - Lists real servers, connects, disconnects
    - Country-based selection
    - Status monitoring
+
+### iPhone/iPad Components (iOS Support)
+
+10. **VPN Web Server** (`vpn_web_server.py`)
+    - Flask-based web server for iPhone access
+    - RESTful API endpoints for server list/download
+    - Mobile-friendly web interface
+    - CORS support for cross-origin requests
+
+11. **Mobile Web Interface** (`templates/index.html`)
+    - Responsive design optimized for iPhone/iPad
+    - Touch-friendly UI with large buttons
+    - Server filtering by country/speed
+    - Direct .ovpn file download
+    - Auto-refresh capability
+
+12. **Quick Start Script** (`start_iphone_server.sh`)
+    - One-command server startup
+    - Automatic IP address detection
+    - Dependency checking and installation
+    - User-friendly instructions
 
 ### Framework Components (Development)
 
@@ -342,17 +391,34 @@ client.get_recent_locations()
 
 ```
 vpn/
-├── __init__.py              # Package initialization
-├── vpn_location.py          # Location data model
-├── config_manager.py        # Configuration management
-├── vpn_connection.py        # Connection management
-├── location_manager.py      # Location switching logic
-├── vpn_client.py           # Main client interface
-├── vpn_cli.py              # Command-line interface
-├── example_usage.py        # Usage examples
-├── requirements.txt        # Dependencies
-├── README.md              # This file
-└── vpn_config.json        # Configuration (auto-generated)
+├── README.md                   # Main documentation
+├── QUICKSTART.md              # Quick start for Linux/macOS
+├── IPHONE_SETUP.md            # Complete iPhone setup guide
+├── requirements.txt           # Python dependencies
+│
+├── Production VPN (Linux/macOS):
+│   ├── vpn_prod.py            ⭐ Main CLI (use this!)
+│   ├── vpngate_api.py         # VPN Gate API client
+│   ├── vpn_connection_prod.py # Real connection manager
+│   └── install.sh             # Installation script
+│
+├── iPhone/iPad VPN:
+│   ├── vpn_web_server.py      ⭐ Web server (use this!)
+│   ├── start_iphone_server.sh # Quick start script
+│   └── templates/
+│       └── index.html         # Mobile web interface
+│
+├── Framework (Development):
+│   ├── __init__.py            # Package initialization
+│   ├── vpn_location.py        # Location data model
+│   ├── config_manager.py      # Configuration management
+│   ├── vpn_connection.py      # Connection management (simulation)
+│   ├── location_manager.py    # Location switching logic
+│   ├── vpn_client.py          # Main client interface
+│   ├── vpn_cli.py             # Command-line interface
+│   └── example_usage.py       # Usage examples
+│
+└── vpn_config.json            # Configuration (auto-generated)
 ```
 
 ## Extending the System

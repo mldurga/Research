@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Free VPN - iPhone</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 10px;
+            color: #667eea;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .controls {
+            background: white;
+            border-radius: 15px;
+            padding: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .btn {
+            width: 100%;
+            padding: 15px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-bottom: 10px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:active {
+            transform: scale(0.98);
+        }
+
+        .filter-group {
+            margin-bottom: 15px;
+        }
+
+        .filter-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .filter-group select,
+        .filter-group input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+
+        .server-list {
+            background: white;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .server-item {
+            padding: 15px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .server-item:last-child {
+            border-bottom: none;
+        }
+
+        .server-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .server-name {
+            font-weight: 600;
+            font-size: 16px;
+            color: #333;
+        }
+
+        .server-index {
+            background: #667eea;
+            color: white;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .server-info {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 10px;
+        }
+
+        .server-stats {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 10px;
+            font-size: 12px;
+        }
+
+        .stat {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .stat-label {
+            color: #999;
+        }
+
+        .stat-value {
+            color: #333;
+            font-weight: 600;
+        }
+
+        .download-btn {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .download-btn:active {
+            transform: scale(0.98);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: white;
+            font-size: 16px;
+        }
+
+        .spinner {
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-top: 3px solid white;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .info-box {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        .info-box h3 {
+            color: #856404;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+
+        .info-box ol {
+            margin-left: 20px;
+            color: #856404;
+            font-size: 14px;
+        }
+
+        .info-box li {
+            margin-bottom: 5px;
+        }
+
+        .count-badge {
+            background: #38ef7d;
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+            display: inline-block;
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🌍 Free VPN for iPhone</h1>
+            <p>Powered by VPN Gate</p>
+        </div>
+
+        <div class="info-box">
+            <h3>📱 How to use on iPhone:</h3>
+            <ol>
+                <li>Install "OpenVPN Connect" app (free from App Store)</li>
+                <li>Select a server below</li>
+                <li>Tap "Download Config"</li>
+                <li>Open file in OpenVPN Connect</li>
+                <li>Tap "Connect"</li>
+            </ol>
+        </div>
+
+        <div class="controls">
+            <div class="filter-group">
+                <label>Filter by Country:</label>
+                <select id="countryFilter">
+                    <option value="">All Countries</option>
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label>Minimum Speed (Mbps):</label>
+                <input type="number" id="speedFilter" value="5" min="1" max="100">
+            </div>
+
+            <button class="btn btn-primary" onclick="loadServers()">
+                🔄 Refresh Servers
+            </button>
+        </div>
+
+        <div id="serverCount"></div>
+        <div id="loading" class="loading" style="display: none;">
+            <div class="spinner"></div>
+            <p>Loading servers...</p>
+        </div>
+
+        <div id="serverList" class="server-list"></div>
+    </div>
+
+    <script>
+        let allServers = [];
+        let allCountries = [];
+
+        // Load servers on page load
+        window.addEventListener('load', () => {
+            loadCountries();
+            loadServers();
+        });
+
+        async function loadCountries() {
+            try {
+                const response = await fetch('/api/countries');
+                const data = await response.json();
+                allCountries = data.countries;
+
+                const select = document.getElementById('countryFilter');
+                allCountries.forEach(country => {
+                    const option = document.createElement('option');
+                    option.value = country;
+                    option.textContent = country;
+                    select.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error loading countries:', error);
+            }
+        }
+
+        async function loadServers() {
+            const loading = document.getElementById('loading');
+            const serverList = document.getElementById('serverList');
+            const serverCount = document.getElementById('serverCount');
+
+            loading.style.display = 'block';
+            serverList.innerHTML = '';
+            serverCount.innerHTML = '';
+
+            try {
+                const minSpeed = document.getElementById('speedFilter').value;
+                const country = document.getElementById('countryFilter').value;
+
+                let url = `/api/servers?min_speed=${minSpeed}`;
+                if (country) {
+                    url += `&country=${encodeURIComponent(country)}`;
+                }
+
+                const response = await fetch(url);
+                const data = await response.json();
+                allServers = data.servers;
+
+                loading.style.display = 'none';
+
+                if (allServers.length === 0) {
+                    serverList.innerHTML = '<div style="padding: 40px; text-align: center; color: #666;">No servers found</div>';
+                    return;
+                }
+
+                serverCount.innerHTML = `<div class="count-badge">📡 ${allServers.length} servers available</div>`;
+
+                allServers.forEach(server => {
+                    const serverDiv = document.createElement('div');
+                    serverDiv.className = 'server-item';
+                    serverDiv.innerHTML = `
+                        <div class="server-header">
+                            <div class="server-name">${server.name}</div>
+                            <div class="server-index">#${server.index}</div>
+                        </div>
+                        <div class="server-info">
+                            📍 ${server.city}, ${server.country}
+                        </div>
+                        <div class="server-stats">
+                            <div class="stat">
+                                <span class="stat-label">Speed:</span>
+                                <span class="stat-value">${server.speed_mbps} Mbps</span>
+                            </div>
+                            <div class="stat">
+                                <span class="stat-label">Ping:</span>
+                                <span class="stat-value">${server.ping}ms</span>
+                            </div>
+                            <div class="stat">
+                                <span class="stat-label">Score:</span>
+                                <span class="stat-value">${server.score}</span>
+                            </div>
+                        </div>
+                        <button class="download-btn" onclick="downloadConfig(${server.index})">
+                            📥 Download Config
+                        </button>
+                    `;
+                    serverList.appendChild(serverDiv);
+                });
+
+            } catch (error) {
+                loading.style.display = 'none';
+                serverList.innerHTML = `
+                    <div style="padding: 40px; text-align: center; color: #e74c3c;">
+                        <p style="margin-bottom: 10px;">❌ Error loading servers</p>
+                        <p style="font-size: 14px;">${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        function downloadConfig(serverIndex) {
+            // Show loading state on button
+            event.target.textContent = '⏳ Downloading...';
+            event.target.disabled = true;
+
+            // Download the configuration file
+            window.location.href = `/api/download/${serverIndex}`;
+
+            // Reset button after 2 seconds
+            setTimeout(() => {
+                event.target.textContent = '📥 Download Config';
+                event.target.disabled = false;
+            }, 2000);
+        }
+
+        // Auto-refresh every 5 minutes
+        setInterval(loadServers, 5 * 60 * 1000);
+    </script>
+</body>
+</html>
