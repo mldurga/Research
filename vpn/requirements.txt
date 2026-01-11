@@ -1,0 +1,19 @@
+# VPN Client Requirements
+# Python 3.7+
+
+# Core dependencies (required for iPhone web server):
+flask>=2.3.0
+flask-cors>=4.0.0
+
+# Optional dependencies for enhanced features:
+
+# For actual VPN connections (production use on Linux/macOS):
+# openvpn (system package)
+# wireguard-tools (system package)
+
+# For network utilities:
+# requests>=2.31.0  # For IP detection and API calls
+# psutil>=5.9.0     # For network interface monitoring
+
+# For configuration:
+# pyyaml>=6.0       # If using YAML config format
