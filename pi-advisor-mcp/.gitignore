@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.pyo
+.env
+chroma_data/
+graph_data/
+bm25_data/
+*.log
+.venv/
+venv/
