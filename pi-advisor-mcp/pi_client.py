@@ -206,6 +206,45 @@ class PIWebAPIClient:
         )
         return data.get("Items", [])
 
+    async def get_element_by_path(
+        self,
+        path: str,
+        selected_fields: str = "WebId,Name,Description,Path,TemplateName,HasChildren",
+    ) -> Optional[Dict]:
+        """
+        Resolve a single AF element by its full path.
+        Returns the element dict, or None if not found.
+        Path format: \\AFServer\Database\Element\SubElement
+        """
+        try:
+            return await self.get(
+                "/elements",
+                params={"path": path, "selectedFields": selected_fields},
+            )
+        except FileNotFoundError:
+            return None
+
+    async def search_descendants(
+        self,
+        element_webid: str,
+        max_count: int = 10000,
+        selected_fields: str = "Items.WebId,Items.Name,Items.Description,Items.Path,Items.TemplateName,Items.HasChildren",
+    ) -> List[Dict]:
+        """
+        Return ALL descendant elements of element_webid (full subtree),
+        scoped server-side via searchFullHierarchy. Does NOT include the
+        root element itself.
+        """
+        data = await self.get(
+            f"/elements/{element_webid}/elements",
+            params={
+                "searchFullHierarchy": "true",
+                "maxCount": max_count,
+                "selectedFields": selected_fields,
+            },
+        )
+        return data.get("Items", [])
+
     async def get_element_attributes(
         self,
         element_webid: str,

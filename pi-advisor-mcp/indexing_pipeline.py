@@ -75,17 +75,74 @@ async def _resolve_database_webid(client: PIWebAPIClient) -> str:
 
 async def fetch_all_elements(client: PIWebAPIClient) -> List[Dict[str, Any]]:
     """
-    Fetch the complete flat list of AF elements from the configured database.
-    Uses the search endpoint which returns all elements regardless of depth.
+    Fetch the flat list of AF elements to be indexed.
+
+    Behaviour depends on config.indexing.root_paths:
+      - empty  → index the entire AF database (whole-database mode)
+      - non-empty → index only the configured root subtrees. Each root path
+        is resolved to its element, and that element plus its full descendant
+        tree are included. Multiple roots are unioned and de-duplicated.
     """
-    database_webid = await _resolve_database_webid(client)
-    elements = await client.search_elements(
-        database_webid=database_webid,
-        query="*",
-        max_count=config.indexing.max_elements,
+    root_paths = config.indexing.root_paths
+
+    if not root_paths:
+        database_webid = await _resolve_database_webid(client)
+        elements = await client.search_elements(
+            database_webid=database_webid,
+            query="*",
+            max_count=config.indexing.max_elements,
+        )
+        logger.info("Fetched %d AF elements (whole-database mode)", len(elements))
+        return elements
+
+    return await _fetch_scoped_elements(client, root_paths)
+
+
+async def _fetch_scoped_elements(
+    client: PIWebAPIClient,
+    root_paths: List[str],
+) -> List[Dict[str, Any]]:
+    """
+    Fetch elements scoped to one or more root subtrees.
+    Each root element is included along with its full descendant hierarchy.
+    Results are merged and de-duplicated by WebId.
+    """
+    merged: Dict[str, Dict[str, Any]] = {}
+
+    for path in root_paths:
+        root = await client.get_element_by_path(path)
+        if not root or not root.get("WebId"):
+            logger.warning("Root path not found, skipping: %s", path)
+            continue
+
+        root_webid = root["WebId"]
+        merged[root_webid] = root  # include the root element itself
+
+        descendants = await client.search_descendants(
+            root_webid,
+            max_count=config.indexing.max_elements,
+        )
+        for d in descendants:
+            webid = d.get("WebId")
+            if webid:
+                merged[webid] = d
+
+        logger.info(
+            "Scoped root '%s' (%s): %d descendants",
+            root.get("Name", path), path, len(descendants),
+        )
+
+    if not merged:
+        logger.error(
+            "No elements resolved from INDEX_ROOT_PATHS=%s — check the paths",
+            root_paths,
+        )
+
+    logger.info(
+        "Fetched %d AF elements (scoped to %d root subtree(s))",
+        len(merged), len(root_paths),
     )
-    logger.info("Fetched %d AF elements from PI Web API", len(elements))
-    return elements
+    return list(merged.values())
 
 
 # --------------------------------------------------------------------------- #

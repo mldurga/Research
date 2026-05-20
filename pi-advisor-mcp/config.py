@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import List, Optional
 
 from dotenv import load_dotenv
 
@@ -18,6 +18,14 @@ def _env_int(key: str, default: int) -> int:
         return int(os.getenv(key, str(default)))
     except ValueError:
         return default
+
+
+def _env_list(key: str) -> List[str]:
+    """Parse a comma-separated env var into a list of trimmed strings."""
+    raw = os.getenv(key, "").strip()
+    if not raw:
+        return []
+    return [item.strip() for item in raw.split(",") if item.strip()]
 
 
 @dataclass
@@ -79,6 +87,11 @@ class IndexingConfig:
     max_elements: int = field(default_factory=lambda: _env_int("INDEXING_MAX_ELEMENTS", 10000))
     concurrency: int = field(default_factory=lambda: _env_int("INDEXING_CONCURRENCY", 20))
     max_attrs_per_element: int = 100
+    # Root-subtree scoping: comma-separated AF element paths to index from.
+    # Empty list = index the entire AF database (default).
+    # Each path is resolved to a WebId and indexed with its full descendant tree.
+    # Example: \\AF\APAPI\Train 1,\\AF\APAPI\Train 2
+    root_paths: List[str] = field(default_factory=lambda: _env_list("INDEX_ROOT_PATHS"))
 
 
 @dataclass
