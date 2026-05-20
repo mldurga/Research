@@ -6,7 +6,20 @@ from typing import List, Optional
 
 from dotenv import load_dotenv
 
-load_dotenv()
+# Anchor .env loading and all relative data paths to THIS file's directory,
+# so the server behaves identically regardless of the process working
+# directory. This matters when an MCP client (e.g. Hermes) launches the
+# server as a subprocess from its own directory.
+_HERE = os.path.dirname(os.path.abspath(__file__))
+
+load_dotenv(os.path.join(_HERE, ".env"))
+
+
+def _anchored(path: str) -> str:
+    """Resolve a possibly-relative path against the package directory."""
+    if os.path.isabs(path):
+        return path
+    return os.path.normpath(os.path.join(_HERE, path))
 
 
 def _env_bool(key: str, default: bool) -> bool:
@@ -54,7 +67,7 @@ class EmbeddingConfig:
 @dataclass
 class ChromaDBConfig:
     client_type: str = field(default_factory=lambda: os.getenv("CHROMA_CLIENT_TYPE", "persistent"))
-    data_dir: str = field(default_factory=lambda: os.getenv("CHROMA_DATA_DIR", "./chroma_data"))
+    data_dir: str = field(default_factory=lambda: _anchored(os.getenv("CHROMA_DATA_DIR", "chroma_data")))
     host: Optional[str] = field(default_factory=lambda: os.getenv("CHROMA_HOST"))
     port: Optional[int] = field(default_factory=lambda: (
         int(os.getenv("CHROMA_PORT")) if os.getenv("CHROMA_PORT") else None
@@ -66,14 +79,14 @@ class ChromaDBConfig:
 @dataclass
 class KnowledgeGraphConfig:
     enabled: bool = field(default_factory=lambda: _env_bool("KG_ENABLED", True))
-    persist_path: str = field(default_factory=lambda: os.getenv("KG_PERSIST_PATH", "./graph_data"))
+    persist_path: str = field(default_factory=lambda: _anchored(os.getenv("KG_PERSIST_PATH", "graph_data")))
     max_depth: int = field(default_factory=lambda: _env_int("KG_MAX_DEPTH", 10))
 
 
 @dataclass
 class BM25Config:
     enabled: bool = field(default_factory=lambda: _env_bool("BM25_ENABLED", True))
-    persist_path: str = field(default_factory=lambda: os.getenv("BM25_PERSIST_PATH", "./bm25_data"))
+    persist_path: str = field(default_factory=lambda: _anchored(os.getenv("BM25_PERSIST_PATH", "bm25_data")))
     k1: float = 1.5
     b: float = 0.75
     top_k: int = 20
