@@ -54,10 +54,19 @@ class PIWebAPIClient:
     # Session lifecycle
     # ------------------------------------------------------------------ #
 
-    def _build_ssl_ctx(self) -> ssl.SSLContext | bool:
+    def _build_ssl_ctx(self) -> ssl.SSLContext:
+        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         if not config.pi.verify_ssl:
-            return False
-        ctx = ssl.create_default_context()
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+            # PI dev/test instances commonly have self-signed certs with
+            # 1024-bit RSA keys. OpenSSL SECLEVEL=2 (default in Python 3.10+)
+            # hard-rejects these even when cert verification is disabled.
+            # SECLEVEL=1 allows 1024-bit RSA (80-bit security minimum).
+            try:
+                ctx.set_ciphers("DEFAULT@SECLEVEL=1")
+            except ssl.SSLError:
+                pass  # Older OpenSSL — default level is already permissive
         return ctx
 
     def _make_connector(self) -> aiohttp.TCPConnector:
