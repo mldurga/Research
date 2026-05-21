@@ -406,7 +406,7 @@ async def search_elements(
     try:
         from indexing_pipeline import _resolve_database_webid
         db_webid = await _resolve_database_webid(_client())
-        items = await _client().search_elements(
+        items = await _client().search_af_elements_by_query(
             database_webid=db_webid,
             query=query,
             template_name=template_name,

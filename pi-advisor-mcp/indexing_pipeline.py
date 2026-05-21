@@ -87,9 +87,8 @@ async def fetch_all_elements(client: PIWebAPIClient) -> List[Dict[str, Any]]:
 
     if not root_paths:
         database_webid = await _resolve_database_webid(client)
-        elements = await client.search_elements(
+        elements = await client.fetch_all_af_elements(
             database_webid=database_webid,
-            query="*",
             max_count=config.indexing.max_elements,
         )
         logger.info("Fetched %d AF elements (whole-database mode)", len(elements))

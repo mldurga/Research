@@ -176,29 +176,55 @@ class PIWebAPIClient:
         data = await self.get(f"/assetservers/{server_webid}/assetdatabases")
         return data.get("Items", [])
 
-    async def search_elements(
+    async def fetch_all_af_elements(
         self,
         database_webid: str,
-        query: str = "*",
+        max_count: int = 10000,
+        selected_fields: str = "Items.WebId;Items.Name;Items.Description;Items.Path;Items.TemplateName;Items.HasChildren",
+    ) -> List[Dict]:
+        """
+        Fetch every element in a database recursively (used by the indexing pipeline).
+        Mirrors the original: GET /assetdatabases/{webid}/elements?searchFullHierarchy=true
+        """
+        data = await self.get(
+            f"/assetdatabases/{database_webid}/elements",
+            params={
+                "searchFullHierarchy": "true",
+                "maxCount": max_count,
+                "selectedFields": selected_fields,
+            },
+        )
+        return data.get("Items", [])
+
+    async def search_af_elements_by_query(
+        self,
+        database_webid: str,
+        query: str,
         *,
         template_name: str = "",
-        max_count: int = 1000,
-        selected_fields: str = "Items.WebId,Items.Name,Items.Description,Items.Path,Items.TemplateName,Items.HasChildren",
+        max_count: int = 500,
+        selected_fields: str = "Items.Name;Items.WebId;Items.Path;Items.TemplateName;Items.HasChildren",
     ) -> List[Dict]:
+        """
+        Query-based element search.
+        Mirrors the original: GET /elements/search?databaseWebId=...&query=...
+        Pass the query verbatim (e.g. 'Name:Tank*') — no extra wrapping.
+        """
         params: Dict[str, Any] = {
-            "query": f"Name:={query}",
+            "databaseWebId": database_webid,
+            "query": query,
             "maxCount": max_count,
             "selectedFields": selected_fields,
         }
         if template_name:
             params["templateName"] = template_name
-        data = await self.get(f"/assetdatabases/{database_webid}/elementssearch", params=params)
+        data = await self.get("/elements/search", params=params)
         return data.get("Items", [])
 
     async def get_element_children(
         self,
         element_webid: str,
-        selected_fields: str = "Items.WebId,Items.Name,Items.Description,Items.Path,Items.TemplateName,Items.HasChildren",
+        selected_fields: str = "Items.WebId;Items.Name;Items.Description;Items.Path;Items.TemplateName;Items.HasChildren",
     ) -> List[Dict]:
         data = await self.get(
             f"/elements/{element_webid}/elements",
@@ -209,12 +235,13 @@ class PIWebAPIClient:
     async def get_element_by_path(
         self,
         path: str,
-        selected_fields: str = "WebId,Name,Description,Path,TemplateName,HasChildren",
+        selected_fields: str = "WebId;Name;Description;Path;TemplateName;HasChildren",
     ) -> Optional[Dict]:
         """
         Resolve a single AF element by its full path.
         Returns the element dict, or None if not found.
-        Path format: \\AFServer\Database\Element\SubElement
+        Path format: \\AFServer\\Database\\Element\\SubElement
+        Mirrors the original: GET /elements?path={path}
         """
         try:
             return await self.get(
@@ -228,12 +255,12 @@ class PIWebAPIClient:
         self,
         element_webid: str,
         max_count: int = 10000,
-        selected_fields: str = "Items.WebId,Items.Name,Items.Description,Items.Path,Items.TemplateName,Items.HasChildren",
+        selected_fields: str = "Items.WebId;Items.Name;Items.Description;Items.Path;Items.TemplateName;Items.HasChildren",
     ) -> List[Dict]:
         """
-        Return ALL descendant elements of element_webid (full subtree),
-        scoped server-side via searchFullHierarchy. Does NOT include the
-        root element itself.
+        All descendant elements within a subtree (for root-scoped indexing).
+        GET /elements/{webid}/elements?searchFullHierarchy=true
+        Does NOT include the root element itself.
         """
         data = await self.get(
             f"/elements/{element_webid}/elements",
@@ -249,10 +276,7 @@ class PIWebAPIClient:
         self,
         element_webid: str,
         max_count: int = 100,
-        selected_fields: str = (
-            "Items.WebId,Items.Name,Items.Description,Items.Type,"
-            "Items.DefaultUnitsName,Items.DataReference"
-        ),
+        selected_fields: str = "Items.WebId;Items.Name;Items.Description;Items.Type;Items.DefaultUnitsName;Items.DataReferencePlugIn",
     ) -> List[Dict]:
         data = await self.get(
             f"/elements/{element_webid}/attributes",
@@ -290,7 +314,7 @@ class PIWebAPIClient:
     async def get_stream_value(
         self,
         attribute_webid: str,
-        selected_fields: str = "Timestamp,Value,UnitsAbbreviation,Good",
+        selected_fields: str = "Timestamp;Value;UnitsAbbreviation;Good",
     ) -> Dict:
         return await self.get(
             f"/streams/{attribute_webid}/value",
@@ -304,7 +328,7 @@ class PIWebAPIClient:
         start_time: str = "*-1d",
         end_time: str = "*",
         max_count: int = 10000,
-        selected_fields: str = "Items.Timestamp,Items.Value,Items.Good",
+        selected_fields: str = "Items.Timestamp;Items.Value;Items.UnitsAbbreviation;Items.Good",
     ) -> List[Dict]:
         params = {
             "startTime": start_time,
@@ -322,7 +346,7 @@ class PIWebAPIClient:
         start_time: str = "*-1d",
         end_time: str = "*",
         interval: str = "1h",
-        selected_fields: str = "Items.Timestamp,Items.Value,Items.Good",
+        selected_fields: str = "Items.Timestamp;Items.Value;Items.UnitsAbbreviation",
     ) -> List[Dict]:
         params = {
             "startTime": start_time,
@@ -340,7 +364,7 @@ class PIWebAPIClient:
         start_time: str = "*-1d",
         end_time: str = "*",
         summary_types: str = "Average,Minimum,Maximum,StdDev",
-        selected_fields: str = "Items.Type,Items.Value.Value,Items.Value.Timestamp",
+        selected_fields: str = "Items.Type;Items.Value.Value;Items.Value.Timestamp",
     ) -> List[Dict]:
         params = {
             "startTime": start_time,
@@ -355,7 +379,7 @@ class PIWebAPIClient:
         self,
         element_webid: str,
         name_filter: str = "*",
-        selected_fields: str = "Items.WebId,Items.Name,Items.Value,Items.Timestamp,Items.Good",
+        selected_fields: str = "Items.Name;Items.Value;Items.Timestamp;Items.UnitsAbbreviation",
     ) -> List[Dict]:
         """All current attribute values for an element in one call."""
         params = {
@@ -399,7 +423,7 @@ class PIWebAPIClient:
         server_webid: str,
         query: str,
         max_count: int = 500,
-        selected_fields: str = "Items.WebId,Items.Name,Items.Descriptor,Items.EngineeringUnits",
+        selected_fields: str = "Items.Name;Items.WebId;Items.Descriptor;Items.PointClass;Items.PointType",
     ) -> List[Dict]:
         params = {
             "query": query,
