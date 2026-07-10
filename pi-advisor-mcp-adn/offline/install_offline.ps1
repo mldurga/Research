@@ -21,14 +21,31 @@
 param(
     [string]$InstallDir = "C:\PIAdvisor",
     [string]$PythonDir  = "C:\Python312",
-    # Bundle root = two levels up from this script (bundle\app\offline\..)
-    [string]$BundleDir  = (Resolve-Path (Join-Path $PSScriptRoot "..\..\..")),
+    # Bundle root = the folder containing wheels\, models\, app\.
+    # Auto-detected by walking up from this script's location when omitted.
+    [string]$BundleDir  = "",
     [switch]$SkipPythonInstall,
     [switch]$SkipVerify
 )
 
 $ErrorActionPreference = "Stop"
 Write-Host "== PI Advisor ADN offline installer ==" -ForegroundColor Cyan
+
+if (-not $BundleDir) {
+    $probe = $PSScriptRoot
+    for ($i = 0; ($i -lt 5) -and $probe; $i++) {
+        if ((Test-Path (Join-Path $probe "wheels")) -and (Test-Path (Join-Path $probe "models"))) {
+            $BundleDir = $probe
+            break
+        }
+        $probe = Split-Path -Parent $probe
+    }
+}
+if (-not $BundleDir) {
+    Write-Error ("Could not locate the bundle root (the folder containing wheels\ and models\). " +
+                 "Pass it explicitly, e.g.:  .\install_offline.ps1 -BundleDir D:\mcp")
+}
+$BundleDir = Resolve-Path $BundleDir
 Write-Host "Bundle : $BundleDir"
 Write-Host "Target : $InstallDir"
 
