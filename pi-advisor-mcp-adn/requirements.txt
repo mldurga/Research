@@ -1,0 +1,36 @@
+# Top-level dependencies — ADN edition (Windows, Python 3.12, offline install).
+#
+# NOTE for the air-gapped install: do NOT install from this file directly.
+# Use requirements-lock.txt with the pre-downloaded wheels:
+#   pip install --no-index --find-links=..\wheels -r requirements-lock.txt
+# This file exists to regenerate the lock (see offline/download_bundle.ps1).
+
+# MCP framework (streamable HTTP + stdio transports)
+fastmcp>=2.10,<3
+
+# PI Web API client
+aiohttp>=3.9
+
+# Data handling / calculation tool
+pandas>=2.2
+numpy>=1.26
+
+# Semantic search stack
+chromadb>=0.5.5
+sentence-transformers>=3.0
+
+# Knowledge graph + keyword index
+networkx>=3.3
+rank-bm25>=0.2.2
+
+# Config
+python-dotenv>=1.0
+
+# Outbound Kerberos/SSPI (Negotiate) for the PI Web API Kerberos gateway
+pyspnego>=0.11
+
+# Inbound Entra ID JWT validation
+PyJWT[crypto]>=2.8
+
+# ASGI server for the HTTP transport (also a fastmcp dependency)
+uvicorn>=0.30
