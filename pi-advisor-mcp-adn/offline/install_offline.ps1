@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
   Install PI Advisor MCP (ADN edition) on the AIR-GAPPED Windows server from
   the offline bundle. No internet access is used at any point.
@@ -36,15 +36,22 @@ $wheels = Join-Path $BundleDir "wheels"
 $models = Join-Path $BundleDir "models"
 $appSrc = Join-Path $BundleDir "app"
 foreach ($p in @($wheels, $models, $appSrc)) {
-    if (-not (Test-Path $p)) { Write-Error "Bundle folder missing: $p — check -BundleDir." }
+    if (-not (Test-Path $p)) { Write-Error "Bundle folder missing: $p - check -BundleDir." }
 }
+
+# Files that travelled via download/zip/removable media can carry the
+# "downloaded from the internet" mark, which blocks scripts under
+# RemoteSigned execution policies. Clear it across the whole bundle.
+# (If THIS script itself was blocked, run once first:
+#   Unblock-File .\install_offline.ps1 )
+Get-ChildItem -Path $BundleDir -Recurse -File | Unblock-File -ErrorAction SilentlyContinue
 
 # ------------------------------------------------------------- 1. Python
 $pythonExe = Join-Path $PythonDir "python.exe"
 if (-not $SkipPythonInstall -and -not (Test-Path $pythonExe)) {
     $installer = Get-ChildItem (Join-Path $BundleDir "python") -Filter "python-3.12.*-amd64.exe" | Select-Object -First 1
     if (-not $installer) { Write-Error "Python installer not found in bundle\python." }
-    Write-Host "`n[1/6] Installing Python 3.12 to $PythonDir (isolated — PATH untouched) ..."
+    Write-Host "`n[1/6] Installing Python 3.12 to $PythonDir (isolated - PATH untouched) ..."
     # PrependPath=0 and Include_launcher=0: existing Python environments and
     # scripts on this server keep working exactly as before.
     Start-Process -Wait -FilePath $installer.FullName -ArgumentList @(
@@ -89,7 +96,7 @@ if (Test-Path $authSrc) {
 $envFile = Join-Path $InstallDir ".env"
 if (-not (Test-Path $envFile)) {
     Copy-Item (Join-Path $InstallDir ".env.example") $envFile
-    Write-Host ".env created from template — EDIT IT NOW (PI Web API URL, auth mode, allowlist)." -ForegroundColor Yellow
+    Write-Host ".env created from template - EDIT IT NOW (PI Web API URL, auth mode, allowlist)." -ForegroundColor Yellow
 }
 # Restrict .env to Administrators + SYSTEM (it may hold secrets).
 icacls $envFile /inheritance:r /grant:r "*S-1-5-32-544:F" "*S-1-5-18:F" | Out-Null
@@ -101,7 +108,7 @@ Write-Host "    icacls `"$envFile`" /grant:r `"DOMAIN\svc-account:R`""
 if (-not $SkipVerify) {
     Write-Host "`n[6/6] Running installation verification ..."
     & $venvPython (Join-Path $InstallDir "offline\verify_install.py")
-    if ($LASTEXITCODE -ne 0) { Write-Error "Verification FAILED — see output above." }
+    if ($LASTEXITCODE -ne 0) { Write-Error "Verification FAILED - see output above." }
 } else {
     Write-Host "`n[6/6] Verification skipped."
 }

@@ -56,6 +56,7 @@ installed on the Copilot side.
 ```powershell
 # Windows prep machine (recommended)
 cd pi-advisor-mcp-adn\offline
+Get-ChildItem -Recurse *.ps1 | Unblock-File   # clear the "downloaded" mark if the files came via zip/download
 .\download_bundle.ps1 -TenantId <entra-tenant-guid> -Zip
 ```
 
@@ -83,9 +84,14 @@ media procedure.
 ### Part 3 — Install on the air-gapped Windows server
 
 ```powershell
-Set-ExecutionPolicy -Scope Process Bypass
+Unblock-File .\app\offline\install_offline.ps1   # in case the zip transfer marked it as downloaded
 .\app\offline\install_offline.ps1 -InstallDir C:\PIAdvisor
 ```
+
+(The installer then unblocks the rest of the bundle itself. If your
+execution policy still refuses, ask IT which policy applies —
+`Get-ExecutionPolicy -List` — an AllSigned GPO would require the scripts to
+be signed with an internal code-signing certificate.)
 
 The installer: installs Python 3.12 side-by-side (**PATH untouched — existing
 Python environments and scripts keep working**), creates `C:\PIAdvisor\.venv`,

@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
   Register the PI Advisor MCP server for unattended operation on Windows
   using the built-in Task Scheduler (no extra binaries needed in the
@@ -16,7 +16,7 @@
   designated domain service account and make sure it has a PI mapping.
 
   Alternative service wrappers (NSSM, WinSW) also work if your organisation
-  prefers real Windows services — point them at:
+  prefers real Windows services - point them at:
     <InstallDir>\.venv\Scripts\python.exe <InstallDir>\pi_mcp_server.py
 
 .EXAMPLE

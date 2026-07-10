@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
   Build the complete offline installation bundle on an INTERNET-CONNECTED
   Windows machine. The resulting folder/zip is everything you carry into the
@@ -6,11 +6,11 @@
 
 .DESCRIPTION
   Produces .\bundle\ containing:
-    python\python-3.12.10-amd64.exe   — Python installer for the target server
-    wheels\*.whl                      — every locked dependency + pip/setuptools/wheel
-    models\bge-base-en-v1.5\          — embedding model (~430 MB)
-    app\                              — this project's source, config template, docs
-    auth\jwks.json                    — Entra ID signing keys (if -TenantId given)
+    python\python-3.12.10-amd64.exe   - Python installer for the target server
+    wheels\*.whl                      - every locked dependency + pip/setuptools/wheel
+    models\bge-base-en-v1.5\          - embedding model (~430 MB)
+    app\                              - this project's source, config template, docs
+    auth\jwks.json                    - Entra ID signing keys (if -TenantId given)
 
   Requires: Python 3.12 x64 installed on THIS machine (winget install
   Python.Python.3.12, or run the downloaded installer manually), because the
@@ -23,7 +23,7 @@
 [CmdletBinding()]
 param(
     [string]$BundleDir = (Join-Path $PSScriptRoot "..\bundle"),
-    # Entra tenant id — when given, exports jwks.json for fully-offline
+    # Entra tenant id - when given, exports jwks.json for fully-offline
     # token validation (AUTH_JWKS_FILE).
     [string]$TenantId = "",
     # Sovereign-cloud login host override, if applicable.
@@ -54,19 +54,27 @@ if (-not (Test-Path $installer)) {
 }
 
 # Locate a local CPython 3.12 to run pip with (tags must match the target).
-$py = $null
-foreach ($candidate in @("py -3.12", "python3.12", "python")) {
-    try {
-        $v = & $candidate.Split()[0] $candidate.Split()[1..99] -c "import sys;print(sys.version_info[:2])" 2>$null
-        if ($v -match "\(3, 12\)") { $py = $candidate; break }
-    } catch { }
+$script:PyExe = $null
+$script:PyPre = @()
+
+if (Get-Command py -ErrorAction SilentlyContinue) {
+    $v = & py -3.12 -c "import sys;print(sys.version_info[:2])" 2>$null
+    if ("$v" -match "\(3, 12\)") { $script:PyExe = "py"; $script:PyPre = @("-3.12") }
 }
-if (-not $py) {
+if (-not $script:PyExe) {
+    foreach ($cand in @("python3.12", "python")) {
+        if (Get-Command $cand -ErrorAction SilentlyContinue) {
+            $v = & $cand -c "import sys;print(sys.version_info[:2])" 2>$null
+            if ("$v" -match "\(3, 12\)") { $script:PyExe = $cand; break }
+        }
+    }
+}
+if (-not $script:PyExe) {
     Write-Error ("CPython 3.12 was not found on this machine. Install it first " +
                  "(the installer was just downloaded to $installer), then re-run this script.")
 }
-Write-Host "Using local Python: $py"
-function Invoke-Py { & $py.Split()[0] ($py.Split()[1..99] + $args) }
+Write-Host "Using local Python: $script:PyExe $script:PyPre"
+function Invoke-Py { & $script:PyExe @script:PyPre @args }
 
 # ---------------------------------------------------------------- 2. Wheels
 Write-Host "`n[2/5] Downloading locked wheels (win_amd64 / cp312) ..."
@@ -99,7 +107,7 @@ if ($TenantId) {
     New-Item -ItemType Directory -Force -Path $authDir | Out-Null
     $jwksUrl = "https://$LoginHost/$TenantId/discovery/v2.0/keys"
     Invoke-WebRequest -Uri $jwksUrl -OutFile (Join-Path $authDir "jwks.json")
-    Write-Host "JWKS saved (source: $jwksUrl). Re-export monthly — Microsoft rotates signing keys."
+    Write-Host "JWKS saved (source: $jwksUrl). Re-export monthly - Microsoft rotates signing keys."
 } else {
     Write-Host "`n[4/5] Skipping JWKS export (no -TenantId). Needed only for AUTH_MODE=entra_jwt with AUTH_JWKS_FILE."
 }
