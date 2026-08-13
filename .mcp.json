@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "twitterapi-io": {
+      "command": "npx",
+      "args": ["-y", "@kaitoinfra/twitterapi-io-mcp-server"],
+      "env": {
+        "TWITTERAPI_IO_API_KEY": "${TWITTERAPI_IO_API_KEY}"
+      }
+    }
+  }
+}
