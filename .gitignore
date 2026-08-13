@@ -1,0 +1,6 @@
+# Local Claude Code settings — may contain API keys, never commit
+.claude/settings.local.json
+
+# Local env files
+.env
+.env.local
